@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IV Pump Practice Lab</title>
+<meta name="description" content="Practice programming a large-volume IV pump with a Guardrails-style drug library, using orders from the ATU Simulation Hospital patients.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="css/pump.css">
+</head>
+<body>
+<!--BODY-START-->
+<header class="topbar">
+  <div class="brand">
+    <h1>IV Pump Practice Lab</h1>
+    <span class="sub">LVP · Guardrails-style drug library</span>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="tab-practice" aria-controls="view-practice" aria-selected="true">Practice</button>
+    <button class="tab" role="tab" id="tab-library" aria-controls="view-library" aria-selected="false">Drug Library</button>
+    <button class="tab" role="tab" id="tab-basics" aria-controls="view-basics" aria-selected="false">Pump Basics</button>
+  </nav>
+  <span class="spacer"></span>
+  <label class="toggle" for="soundToggle"><input type="checkbox" id="soundToggle" checked> Alarm sound</label>
+</header>
+
+<main>
+  <!-- ================= PRACTICE ================= -->
+  <section class="view" id="view-practice" role="tabpanel" aria-labelledby="tab-practice">
+    <div class="practice">
+      <div class="device-col">
+        <div class="simbar">
+          <span class="label">Sim speed</span>
+          <span class="seg" id="speedSeg">
+            <button data-speed="1" aria-pressed="true">1×</button>
+            <button data-speed="10" aria-pressed="false">10×</button>
+            <button data-speed="60" aria-pressed="false">60×</button>
+            <button data-speed="300" aria-pressed="false">300×</button>
+          </span>
+          <span>Sim time <span class="clock" id="clock">00:00:00</span></span>
+        </div>
+
+        <div class="pump-wrap">
+          <div class="pump" id="pump">
+            <div class="module" data-ch="A" id="modA"></div>
+            <div class="pcu">
+              <div class="pcu-head"><span class="pcu-brand">PC UNIT</span><span class="pcu-leds"><span class="led" id="pcuLed" title="Power / alarm"></span></span></div>
+              <div class="screen-grid">
+                <button class="sk L" data-side="L" data-i="0" style="grid-column:1;grid-row:2" aria-label="Left soft key 1"></button>
+                <button class="sk L" data-side="L" data-i="1" style="grid-column:1;grid-row:3" aria-label="Left soft key 2"></button>
+                <button class="sk L" data-side="L" data-i="2" style="grid-column:1;grid-row:4" aria-label="Left soft key 3"></button>
+                <button class="sk L" data-side="L" data-i="3" style="grid-column:1;grid-row:5" aria-label="Left soft key 4"></button>
+                <button class="sk L" data-side="L" data-i="4" style="grid-column:1;grid-row:6" aria-label="Left soft key 5"></button>
+                <div class="lcd" id="lcd" aria-live="polite"></div>
+                <button class="sk R" data-side="R" data-i="0" style="grid-column:3;grid-row:2" aria-label="Right soft key 1"></button>
+                <button class="sk R" data-side="R" data-i="1" style="grid-column:3;grid-row:3" aria-label="Right soft key 2"></button>
+                <button class="sk R" data-side="R" data-i="2" style="grid-column:3;grid-row:4" aria-label="Right soft key 3"></button>
+                <button class="sk R" data-side="R" data-i="3" style="grid-column:3;grid-row:5" aria-label="Right soft key 4"></button>
+                <button class="sk R" data-side="R" data-i="4" style="grid-column:3;grid-row:6" aria-label="Right soft key 5"></button>
+                <div class="bottom-keys">
+                  <button class="sk B" data-side="B" data-i="0" aria-label="Bottom soft key 1"></button>
+                  <button class="sk B" data-side="B" data-i="1" aria-label="Bottom soft key 2"></button>
+                  <button class="sk B" data-side="B" data-i="2" aria-label="Bottom soft key 3"></button>
+                  <button class="sk B" data-side="B" data-i="3" aria-label="Bottom soft key 4"></button>
+                </div>
+              </div>
+              <div class="pcu-keys">
+                <div class="keypad">
+                  <button class="key" data-key="1">1</button><button class="key" data-key="2">2</button><button class="key" data-key="3">3</button>
+                  <button class="key" data-key="4">4</button><button class="key" data-key="5">5</button><button class="key" data-key="6">6</button>
+                  <button class="key" data-key="7">7</button><button class="key" data-key="8">8</button><button class="key" data-key="9">9</button>
+                  <button class="key" data-key=".">.</button><button class="key" data-key="0">0</button><button class="key fn clear" data-key="CLEAR">CLEAR</button>
+                </div>
+                <div class="fnkeys">
+                  <button class="key fn teal" data-key="SILENCE">SILENCE</button>
+                  <button class="key fn teal" data-key="OPTIONS">OPTIONS</button>
+                  <span class="fn-gap"></span>
+                  <button class="key fn power" id="powerKey"><span class="pwr-icon" aria-hidden="true">⏻</span> SYSTEM ON</button>
+                </div>
+              </div>
+            </div>
+            <div class="module" data-ch="B" id="modB"></div>
+          </div>
+        </div>
+
+        <section class="panel bedside" aria-labelledby="bedsideTitle">
+          <h2 id="bedsideTitle">Bedside: tubing, clamps and bags</h2>
+          <div class="bedside-grid" id="bedside"></div>
+        </section>
+      </div>
+
+      <aside class="coach" id="coach">
+        <div class="panel picker">
+          <label for="scenarioSelect">Scenario</label>
+          <select id="scenarioSelect"></select>
+          <p class="summary" id="scenarioSummary"></p>
+          <div class="row">
+            <button class="btn-plain" id="restartBtn">Restart scenario</button>
+          </div>
+        </div>
+        <div id="patientBand"></div>
+        <div class="orders" id="orders"></div>
+        <div class="vitals" id="vitals"></div>
+        <div id="decisions"></div>
+        <div class="panel goals" id="goals"></div>
+        <div id="debrief"></div>
+        <details class="panel history" id="history">
+          <summary>Pump event history</summary>
+          <ol id="historyList"></ol>
+        </details>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= DRUG LIBRARY ================= -->
+  <section class="view" id="view-library" role="tabpanel" aria-labelledby="tab-library" hidden>
+    <p class="intro">This practice library works like a hospital's Guardrails library. Each care-area profile has its own list and its own limits. A <b>soft limit</b> asks you to confirm, and you override only after checking the order. A <b>hard limit</b> cannot be overridden. Values are teaching examples. Your facility's pharmacy builds the real library.</p>
+    <div class="lib-controls">
+      <label for="libProfile">Profile</label>
+      <select id="libProfile"></select>
+      <input id="libSearch" type="search" placeholder="Search drug name" aria-label="Search drug name">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Drug</th><th>Concentration(s)</th><th>Dosing unit</th><th>Soft min</th><th>Soft max</th><th>Hard max</th><th>Notes</th></tr></thead>
+        <tbody id="libBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= BASICS ================= -->
+  <section class="view" id="view-basics" role="tabpanel" aria-labelledby="tab-basics" hidden>
+    <div class="basics">
+      <div class="panel">
+        <h3>Parts of the pump</h3>
+        <ul>
+          <li><b>PC unit</b> (center): the screen, 5 soft keys on each side, 4 soft keys under the screen, number keys, CLEAR, SILENCE, OPTIONS and SYSTEM ON.</li>
+          <li><b>Pump modules</b>: Channel A is on the left, Channel B on the right. CHANNEL SELECT opens that channel on the screen. PAUSE, RESTART and CHANNEL OFF control only that channel.</li>
+          <li><b>Soft keys</b>: blank arrow keys. Their job is written on the screen next to them (for example RATE, VTBI, DOSE, START).</li>
+          <li><b>Prompt line</b>: the line starting with <b>&gt;</b> tells you the next step, such as <i>&gt;Select Drug</i> or <i>&gt;Press START</i>.</li>
+          <li><b>Module display</b>: scrolls the drug name and dose and shows the rate, even when the screen is on another channel.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Programming a primary infusion</h3>
+        <ol>
+          <li>Check the order, the patient (two identifiers) and the bag label.</li>
+          <li>Spike the bag, prime the tubing, and load the set in a channel.</li>
+          <li>SYSTEM ON → watch the self test → <b>New Patient? Yes</b> → select the unit <b>profile</b> → Yes.</li>
+          <li>Type the <b>patient ID</b> from the armband → CONFIRM.</li>
+          <li>Press <b>CHANNEL SELECT</b> on the module → Infusion Menu → <b>Guardrails Drugs</b> or <b>Guardrails IV Fluids</b>.</li>
+          <li>Use the letter keys (A-E … U-Z) or PAGE DOWN to find the drug. Pick the concentration that matches the bag → <b>Yes</b>.</li>
+          <li>For high-alert drugs read the advisory → CONFIRM. On Drug Setup enter PATIENT WEIGHT if asked → NEXT.</li>
+          <li>Press RATE or DOSE and type the value. Press VTBI and type the volume.</li>
+          <li>Trace the line, open the clamp, check the screen against the order, press the <b>START</b> soft key.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Secondary (IVPB) set-up</h3>
+        <ol>
+          <li>Connect secondary tubing to the port <b>above</b> the pump on the primary line.</li>
+          <li>Hang the secondary bag <b>higher</b> than the primary (lower the primary with the extension hook).</li>
+          <li><b>Open the secondary clamp.</b> A closed clamp means the pump pulls primary fluid instead.</li>
+          <li>CHANNEL SELECT → <b>SECONDARY</b> soft key → drug → Yes.</li>
+          <li>VTBI fills in with the bag volume. Type the DURATION (for 30 min type 30; for 1 h 30 min type 130).</li>
+          <li>Prompt reads <i>&gt;Verify Secondary Clamp Open, Then Press START</i>. Callback ON makes the pump alert when it finishes.</li>
+          <li>The primary resumes automatically at its own rate.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Soft limits vs. hard limits</h3>
+        <p><b>Soft limit</b>: the dose is unusual for this care area. Stop, re-read the order, recheck your math and the patient's weight. Override only if the order is correct and verified. Overrides are recorded.</p>
+        <p><b>Hard limit</b>: the dose is unsafe for this care area. The pump will not run it. Re-enter or hold and call the provider or pharmacist.</p>
+        <p><b>Basic Infusion</b> skips all limits. Never use it to get around an alert, and never for high-alert medications.</p>
+      </div>
+      <div class="panel wide">
+        <h3>Dose calculation formulas</h3>
+        <div class="calc">
+concentration (per mL) = drug amount in bag ÷ bag volume (mL)<br>
+mL/h = dose per hr ÷ concentration<br><br>
+units/kg/hr &nbsp;: mL/h = (dose × kg) ÷ (units/mL)<br>
+&nbsp;&nbsp;Heparin 18 units/kg/hr × 80 kg = 1,440 units/hr ÷ 100 units/mL = <b>14.4 mL/h</b><br>
+mcg/min &nbsp;&nbsp;&nbsp;&nbsp;: mL/h = (dose × 60) ÷ (mcg/mL)<br>
+&nbsp;&nbsp;Norepinephrine 4 mg/250 mL = 16 mcg/mL; 2 mcg/min × 60 = 120 ÷ 16 = <b>7.5 mL/h</b><br>
+mcg/kg/min &nbsp;: mL/h = (dose × kg × 60) ÷ (mcg/mL)<br>
+milliunits/min: Oxytocin 30 units/500 mL = 60 mU/mL; 2 mU/min × 60 = 120 ÷ 60 = <b>2 mL/h</b><br>
+volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(100 mL over 30 min = 100 ÷ 0.5 = <b>200 mL/h</b>)
+        </div>
+      </div>
+      <div class="panel wide">
+        <h3>Alarm troubleshooting</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Alarm</th><th>Likely cause</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr><td>Patient side occlusion</td><td>Kinked tubing, closed slide clamp, bent arm, infiltrated IV</td><td>Silence. Look at the site and the line from the pump to the patient. Straighten, unclamp, assess for infiltration. Press RESTART.</td></tr>
+              <tr><td>Fluid side occlusion</td><td>Roller clamp closed above the pump, spike not open, empty bag</td><td>Open the roller clamp, check the spike and bag. Press RESTART.</td></tr>
+              <tr><td>Air in line</td><td>Tubing not fully primed, bag ran dry, bubbles from a new bag</td><td>Pause, open the door, remove the air by priming or using a port below the air, reload the set. Press RESTART.</td></tr>
+              <tr><td>Infusion complete / KVO</td><td>VTBI reached</td><td>Hang a new bag if ordered, CHANNEL SELECT, enter a new VTBI, press START. Or turn the channel off and flush/lock the line.</td></tr>
+              <tr><td>Channel paused too long</td><td>Channel paused over 2 minutes</td><td>Resume with RESTART, or turn the channel off if the infusion is stopped.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel wide">
+        <h3>Safety habits that prevent pump errors</h3>
+        <ul>
+          <li>Always use the drug library. Match the concentration to the bag label.</li>
+          <li>Titrate by <b>dose</b>, not by rate, so the library checks the new dose.</li>
+          <li>Independent double check for high-alert drips (heparin, insulin, vasopressors, opioids, oxytocin, magnesium).</li>
+          <li>Set VTBI to the ordered volume, especially for boluses and pediatrics, not automatically to the bag size.</li>
+          <li>Trace every line from bag to pump to patient at start, at handoff, and whenever a new line is added.</li>
+          <li>Check the pump against the MAR at the start of every shift and after every change.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p><b>For education only.</b> This simulator is modeled on the general workflow of large-volume pumps with dose error reduction software (for example, a PC unit with LVP modules and a Guardrails-style library). It is not a copy of any manufacturer's software and is not affiliated with or endorsed by BD. Alaris and Guardrails are trademarks of their owners.</p>
+  <p>Drug concentrations and limits are teaching values. Always follow your facility's library, policies, and the manufacturer's directions for use. Scenarios use the fictional ATU Simulation Hospital patients; details marked "sim extension" were added for pump practice.</p>
+</footer>
+<!--BODY-END-->
+<script src="js/library.js"></script>
+<script src="js/pump.js"></script>
+<script src="js/scenarios.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
