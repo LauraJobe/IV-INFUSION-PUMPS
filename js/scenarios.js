@@ -7,7 +7,7 @@
 const SCENARIOS = [
   {
     id: "practice", level: "Practice", title: "Practice mode: random orders", practice: true,
-    summary: "A new order every round from Med-Surg, ICU, L&D or Pediatrics. Lines are already primed and loaded: just program the pump and press START.",
+    summary: "A new order every round from Med-Surg, ICU, L&D or Pediatrics. Lines are already primed and loaded: just program the pump and start it.",
     setup: () => {},
   },
   {
@@ -18,7 +18,7 @@ const SCENARIOS = [
   },
   {
     id: "free", level: "Practice", title: "Free practice: explore the pump",
-    summary: "No order to follow. Start from power-off and try every screen. Tubing is already primed and loaded on both channels.",
+    summary: "No order to follow. Start from power-off and try every screen. Tubing is already primed and loaded.",
     patient: null,
     noBedside: true,
     setup: (P) => {
@@ -30,7 +30,7 @@ const SCENARIOS = [
       }));
       P.emit();
     },
-    order: () => `<p>No order. Try each feature: start-up, a Guardrails drug, a weight-based drip, a titration, a secondary, a soft-limit override and a hard limit.</p>`,
+    order: () => `<p>No order. Try each feature: start-up, a drug from the library, a weight-based drip, a titration, a secondary, a soft-limit override and a hard limit.</p>`,
     bags: [
       { name: "0.9% Sodium Chloride 1000 mL", vol: 1000 },
       { name: "Lactated Ringer's 1000 mL", vol: 1000 },
@@ -40,6 +40,7 @@ const SCENARIOS = [
       { name: "Vancomycin 1 g / 250 mL (secondary)", vol: 250, secondary: true },
     ],
     goals: [],
-    hints: ["Press SYSTEM ON to begin.", "After start-up, press CHANNEL SELECT on module A or B."],
+    hints: ["Press the power key to begin (SYSTEM ON on the modular pump, ON/OFF on the single-channel pump).",
+      "Modular pump: after start-up, press CHANNEL SELECT on module A or B. Single-channel pump: answer New Patient, pick the care area with ▲▼ and OK, then type the first letters of the drug."],
   },
 ];

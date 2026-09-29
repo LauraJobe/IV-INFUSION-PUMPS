@@ -8,6 +8,12 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } },
   };
 
+  // Which pump the student practices on: "mod" (modular, pump.js) or "sq" (single channel, spectrum.js).
+  const CFG0 = window.IVP_CONFIG || {};
+  let DEV = CFG0.device || store.get("ivp-dev") || null;
+  if (DEV !== "mod" && DEV !== "sq") DEV = null;
+  let P = DEV === "sq" ? Spectrum : Pump;
+
   let speed = 1;
   let scn = null;   // current scenario definition
   let X = null;     // scenario runtime state
@@ -43,10 +49,15 @@
     if (l) { keyTone(); Pump.softKey(l.dataset.side, +l.dataset.i); }
   });
   document.addEventListener("keydown", (e) => {
-    if ($("#view-practice").hidden || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    if (/^[0-9.]$/.test(e.key)) Pump.key(e.key);
-    else if (e.key === "Enter" && !/BUTTON/.test(document.activeElement.tagName)) Pump.key("ENTER");
-    else if (e.key === "Backspace" || e.key === "Escape") Pump.key("CLEAR");
+    if ($("#view-practice").hidden || !DEV || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (DEV === "sq") {
+      if (/^[0-9.]$/.test(e.key)) { keyTone(); Spectrum.key(e.key); }
+      else if (e.key === "Enter" && !/BUTTON/.test(document.activeElement.tagName)) { keyTone(); Spectrum.key("OK"); }
+      return;
+    }
+    if (/^[0-9.]$/.test(e.key)) P.key(e.key);
+    else if (e.key === "Enter" && !/BUTTON/.test(document.activeElement.tagName)) P.key("ENTER");
+    else if (e.key === "Backspace" || e.key === "Escape") P.key("CLEAR");
   });
 
   CHANNEL_IDS.forEach((id) => {
@@ -72,11 +83,52 @@
     $$("[data-mk]", m).forEach((b) => b.addEventListener("click", () => { keyTone(); Pump.moduleKey(id, b.dataset.mk); }));
   });
 
+  // Single-channel pump keys
+  $$(".sqk").forEach((b) => b.addEventListener("click", () => { keyTone(); Spectrum.softKey("B", +b.dataset.i); }));
+  $$("[data-sq]").forEach((b) => b.addEventListener("click", () => { keyTone(); Spectrum.key(b.dataset.sq); }));
+  $("#sqPower").addEventListener("click", () => {
+    audioUnlock();
+    const was = Spectrum.state.on;
+    if (was) keyTone();
+    Spectrum.power();
+    if (!was && Spectrum.state.screen.id === "boot") sqPowerTone();
+  });
+  $("#sqScreen").addEventListener("click", (e) => {
+    const l = e.target.closest("[data-i]");
+    if (l) { keyTone(); Spectrum.softKey("B", +l.dataset.i); }
+  });
+
+  // ------------------------------------------------------------ pump picker
+  function setDevice(dev, keepMode) {
+    DEV = dev;
+    store.set("ivp-dev", dev);
+    const next = dev === "sq" ? Spectrum : Pump;
+    if (next !== P) { P.reset(); P = next; }
+    document.body.classList.toggle("dev-sq", dev === "sq");
+    document.body.classList.toggle("dev-mod", dev === "mod");
+    document.body.classList.remove("picking");
+    $("#pumpPicker").hidden = true;
+    $("#pump").hidden = dev !== "mod";
+    $("#sq").hidden = dev !== "sq";
+    $(".pump-wrap").hidden = false;
+    $("#changePump").hidden = !!CFG0.device;
+    if (keepMode !== false && scn) loadScenario(sel.value);
+    requestAnimationFrame(fitPump);
+  }
+  function showPicker() {
+    document.body.classList.add("picking");
+    $("#pumpPicker").hidden = false;
+    $(".pump-wrap").hidden = true;
+    $("#changePump").hidden = true;
+  }
+  $$(".pp-card").forEach((b) => b.addEventListener("click", () => { audioUnlock(); setDevice(b.dataset.dev); }));
+  $("#changePump").addEventListener("click", showPicker);
+
   // ------------------------------------------------------------ fit to screen
   // Scale the whole pump (A | PC unit | B) to the available width so phones
   // see the same layout as the real device instead of wrapping the modules.
   function fitPump() {
-    const wrap = $(".pump-wrap"), pump = $("#pump");
+    const wrap = $(".pump-wrap"), pump = DEV === "sq" ? $("#sq") : $("#pump");
     if (!wrap || !pump || wrap.offsetParent === null) return;
     pump.style.zoom = "";
     const natural = pump.scrollWidth;
@@ -131,11 +183,16 @@
   }
   // SYSTEM ON: two short high beeps, then a lower longer tone.
   function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); buzz([60, 60, 60, 60, 120]); }
-  // Every key press on a powered-on pump: one 1.2 kHz beep, about 0.1 s.
+  // Every key press on a powered-on pump: one 1.2 kHz beep, about 0.1 s
+  // (single-channel pump: 1 kHz, about 0.09 s).
   function keyTone() {
     audioUnlock();
-    if (Pump.state.on) { tone(1200, 0.1, 0, 0.07, 0.16); buzz(20); }
+    if (!P.state.on) return;
+    if (DEV === "sq") tone(1000, 0.09, 0, 0.07, 0.12); else tone(1200, 0.1, 0, 0.07, 0.16);
+    buzz(20);
   }
+  // Single-channel pump power on: a short rising two-note chime.
+  function sqPowerTone() { tone(1000, 0.12, 0, 0.06); tone(1500, 0.18, 0.15, 0.06); buzz([60, 60, 120]); }
   // A channel is "selected but not started" from CHANNEL SELECT until START:
   // any step of the programming flow, or an edited (not yet started) change.
   const FLOW_SCREENS = ["infusionMenu", "list", "conc", "drugConfirm", "advisory", "setup", "weight", "program", "limit"];
@@ -150,6 +207,7 @@
   let lastBeep = 0;
   function alarmAudio(S) {
     if (!S.on || Date.now() < S.silencedUntil) return;
+    if (DEV === "sq") return sqAlarmAudio(S);
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
     if (!alarms.length) {
       // Steady single reminder beep until the program is started.
@@ -172,6 +230,60 @@
     else { tone(2200, 0.25, lead, 0.06, 0.07); buzz(200, lead * 1000); }
   }
 
+  // Single-channel pump: three short 1 kHz beeps, then a long 1 kHz tone
+  // that steps up to 3 kHz and back (measured from a recording), repeating
+  // about every 4 s. Low priority: one short beep every 5 s. Reminder while a
+  // program is set up but not started: one short beep every 1.5 s.
+  function sqAlarmAudio(S) {
+    const a = S.channels.A.alarm;
+    const now = Date.now();
+    if (!a) {
+      if (Spectrum.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(1000, 0.2, 0, 0.05, 0.08); }
+      return;
+    }
+    const gap = a.level === "high" ? 4000 : 5000;
+    const next = lastBeep + gap;
+    if (now < next - 260) return;
+    const lead = now < next ? (next - now) / 1000 : 0;
+    lastBeep = now < next + 260 ? next : now;
+    if (a.level === "high") {
+      [0, 0.18, 0.36].forEach((t) => tone(1000, 0.1, lead + t, 0.08, 0.08));
+      tone(1000, 0.65, lead + 0.62, 0.08, 0.08); tone(3000, 0.2, lead + 1.27, 0.06); tone(1000, 0.15, lead + 1.47, 0.08, 0.08);
+      buzz([100, 80, 100, 80, 100, 180, 900], lead * 1000);
+    } else { tone(1000, 0.2, lead, 0.06, 0.08); buzz(200, lead * 1000); }
+  }
+
+  // ------------------------------------------------------------ render single-channel pump
+  function renderSq(S) {
+    const scr = $("#sqScreen");
+    const spec = Spectrum.render();
+    $("#sqPower").classList.toggle("pulse", !S.on);
+    const c = S.channels.A;
+    const running = S.on && (c.state === "running" || c.state === "kvo");
+    $("#sqLed").className = "led" + (S.on ? (c.alarm && c.alarm.level === "high" ? " alarm" : " on") : "");
+    const door = $(".sq-door"), b = c.bedside;
+    door.classList.toggle("sq-dripping", running && b.loaded);
+    door.style.setProperty("--drip", `${Math.max(0.25, Math.min(3, 60 / Math.max(1, Spectrum.currentRate(c))))}s`);
+    $(".tube", door).setAttribute("fill", b.loaded ? (b.primed ? "#e3f1f7" : "#fbe3df") : "none");
+    const ds = $(".door-state", door);
+    ds.textContent = b.loaded ? "SET LOADED" : "DOOR OPEN";
+    ds.className = "door-state" + (b.loaded ? "" : " open");
+    scr.className = "sq-screen" + (!S.on || spec.off ? " off" : "");
+    if (!S.on || spec.off) { setHTML(scr, ""); return; }
+    if (spec.boot) { setHTML(scr, `<div class="sqs-boot"><div class="logo">LVP<small>Single-channel · Practice</small></div><div class="bar"><i></i></div><div style="font-size:12px;color:#56656f">Self test…</div></div>`); return; }
+    const al = spec.alarm;
+    const title = al
+      ? `<div class="sqs-title ${al.level === "high" ? "alarm" : "soft"}"><span>${al.msg}</span><span class="bat"></span></div>`
+      : `<div class="sqs-title"><span>${spec.title || "&nbsp;"}</span><span class="bat"></span></div>`;
+    const drug = spec.drug ? `<div class="sqs-drug"><b>${spec.drug}</b>${spec.sub ? `<span>${spec.sub}</span>` : ""}</div>` : "";
+    const alarmBox = al ? `<div class="sq-alarmbox">${al.msg}<br><small>${Date.now() < S.silencedUntil ? "Silenced" : "Press silence"}${al.level === "high" && al.type !== "complete" ? " · fix the cause, then RUN/STOP" : ""}</small></div>` : "";
+    const prompt = S.flash
+      ? `<div class="sqs-prompt${S.flash.kind === "warn" ? " warn" : ""}">${S.flash.text}</div>`
+      : `<div class="sqs-prompt">${spec.prompt || ""}</div>`;
+    const labels = `<div class="sqs-labels">${spec.soft.map((k, i) => k ? `<div data-i="${i}">${k.label}</div>` : `<div class="empty"></div>`).join("")}</div>`;
+    setHTML(scr, title + drug + `<div class="sqs-body">${alarmBox}${spec.body || ""}</div>` + prompt + labels);
+  }
+
   // ------------------------------------------------------------ render pump
   const BOOT_HTML = `<div class="boot">
     <div class="logo"><div class="drop"></div><div class="name">PC UNIT<small>Point-of-Care Unit · Practice</small></div></div>
@@ -186,7 +298,7 @@
     </ul></div>`;
 
   function renderLCD(S) {
-    const spec = Pump.render();
+    const spec = P.render();
     const lcd = $("#lcd");
     $("#powerKey").classList.toggle("pulse", !S.on);
     lcd.className = "lcd" + (!S.on || spec.off ? " off" : "") + (spec.alert ? " alert-" + spec.alert : "");
@@ -236,10 +348,10 @@
       else if (!ch.primary) { cls += " dim"; html = "CHANNEL<br>AVAILABLE"; }
       else {
         const p = ch.onSecondary && ch.secondary ? ch.secondary : ch.primary;
-        const rate = Pump.currentRate(ch);
+        const rate = P.currentRate(ch);
         const name = p.mode === "basic" ? "BASIC INFUSION" : p.drug.name.toUpperCase();
         const flag = p.overrides && p.overrides.length ? (p.overrides.some((o) => o.dir === "max") ? " ↑↑↑" : " LLL") : "";
-        const dose = Pump.hasDose(p) ? ` ${fmtNum(p.dose, 2)} ${Pump.doseUnit(p)}` : "";
+        const dose = P.hasDose(p) ? ` ${fmtNum(p.dose, 2)} ${P.doseUnit(p)}` : "";
         const scroll = `<span class="scroll">${ch.onSecondary ? "SECONDARY " : ""}${name}${dose}${flag}</span>`;
         if (ch.alarm && ch.alarm.level === "high") { cls += " red"; html = ch.alarm.msg; }
         else if (ch.state === "paused") { cls += " amber"; html = `${scroll}<br><span class="big">PAUSED</span>`; }
@@ -254,7 +366,7 @@
       const door = $(".mod-door", m), ds = $(".door-state", m);
       const b = ch.bedside;
       door.classList.toggle("dripping", running && b.loaded);
-      door.style.setProperty("--drip", `${Math.max(0.25, Math.min(3, 60 / Math.max(1, Pump.currentRate(ch))))}s`);
+      door.style.setProperty("--drip", `${Math.max(0.25, Math.min(3, 60 / Math.max(1, P.currentRate(ch))))}s`);
       $(".tube", m).setAttribute("fill", b.loaded ? (b.primed ? "#e3f1f7" : "#fbe3df") : "none");
       ds.textContent = b.loaded ? "SET LOADED" : "DOOR OPEN";
       ds.className = "door-state" + (b.loaded ? "" : " open");
@@ -332,7 +444,7 @@
     let arg;
     if (act === "prime") { const sel = $("#bagSel" + id); arg = list[+sel.value]; arg = { name: arg.name, vol: arg.vol }; }
     if (act === "hangSecondary") { const sel = $("#secSel" + id); arg = list[+sel.value]; arg = { name: arg.name, vol: arg.vol }; }
-    Pump.bedside(id, act, arg);
+    P.bedside(id, act, arg);
   });
 
   // ------------------------------------------------------------ scenarios
@@ -350,11 +462,11 @@
     hintsShown = 0;
     document.body.classList.toggle("practice-mode", !!(scn.practice || scn.noBedside));
     if (scn.quiz) startQuiz();
-    if (scn.practice) newPracticeOrder(); else scn.setup(Pump);
+    if (scn.practice) newPracticeOrder(); else scn.setup(P);
     store.set("ivp-scn", scn.id);
     $("#scenarioSummary").textContent = scn.summary || "";
     $("#decisions")._h = null;
-    renderCoach(Pump.state);
+    renderCoach(P.state);
   }
 
   // ------------------------------------------------------------ practice mode
@@ -383,8 +495,8 @@
     }
     const order = scn.quiz ? quizOrder() : same && X.order ? X.order : PRACTICE.newOrder(practiceFilter);
     X = { phase: 0, decisions: {}, met: {}, miss: {}, order, result: null, held: false, showAnswer: false };
-    PRACTICE.setup(Pump, order);
-    X.logStart = Pump.state.log.length;
+    PRACTICE.setup(P, order);
+    X.logStart = P.state.log.length;
     ["#patientBand", "#orders", "#goals", "#decisions", "#debrief"].forEach((s) => ($(s)._h = null));
   }
 
@@ -432,7 +544,7 @@
         <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
         <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
         <dt>Unit</dt><dd>${p.unit} <span class="src">(profile already selected)</span></dd></dl>`);
-    setHTML($("#orders"), `<h3>Provider order</h3><p>${o.text}</p>`);
+    setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" ? o.text.replace(/ on Channel A/g, " on the pump") : o.text}</p>`);
     setHTML($("#vitals"), "");
     setHTML($("#decisions"), "");
     setHTML($("#debrief"), "");
@@ -450,9 +562,15 @@
           ? `<button class="btn-main" data-pr="next">${quiz.results.length < quiz.count ? `Next order (${quiz.results.length + 1} of ${quiz.count})` : "See my results"}</button>`
           : `<button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}`}</div>`;
     } else {
-      body = `<p class="pr-help">Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.</p>
+      const help = DEV === "sq"
+        ? (o.kind === "titrate" ? "The drip is running. Use <b>dose change</b> on the RUN screen. Your work is checked when you press <b>RUN/STOP</b>."
+          : o.kind === "secondary" ? "The primary is running. Stop it with <b>RUN/STOP</b>, then <b>program pri/sec</b> → <b>program secndry</b>. Your work is checked when the secondary starts."
+          : "The pump is on the Drug Search screen. Program the order. Your work is checked when the infusion starts (<b>RUN/STOP</b> → Check Flow <b>yes</b>).")
+        : `Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.`;
+      const steps = DEV === "sq" ? PRACTICE.sqSteps(o) : o.steps;
+      body = `<p class="pr-help">${help}</p>
         <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
-        ${X.showAnswer ? `<div class="pr-answer"><ol>${o.steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
+        ${X.showAnswer ? `<div class="pr-answer"><ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
     }
     const head = scn.quiz
       ? `<div class="pr-head"><h3>Check-off · order ${quiz.results.length + (X.result ? 0 : 1)} of ${quiz.count}</h3></div>
@@ -511,7 +629,7 @@
   }
 
   $("#coach").addEventListener("change", (e) => {
-    if (e.target.id === "specSel") { practiceFilter = e.target.value; store.set("ivp-spec", practiceFilter); newPracticeOrder(); renderCoach(Pump.state); }
+    if (e.target.id === "specSel") { practiceFilter = e.target.value; store.set("ivp-spec", practiceFilter); newPracticeOrder(); renderCoach(P.state); }
   });
   $("#coach").addEventListener("click", (e) => {
     const pr = e.target.closest("[data-pr]");
@@ -520,17 +638,17 @@
       if (a === "next" || a === "skip") newPracticeOrder();
       else if (a === "retry") newPracticeOrder(true);
       else if (a === "answer") X.showAnswer = !X.showAnswer;
-      else if (a === "hold") { X.held = true; checkPractice(Pump.state); }
+      else if (a === "hold") { X.held = true; checkPractice(P.state); }
       else if (a === "newquiz") { startQuiz(); newPracticeOrder(); }
-      renderCoach(Pump.state);
+      renderCoach(P.state);
       return;
     }
     const d = e.target.closest("[data-dec]");
-    if (d) { X.decisions[d.dataset.dec] = d.dataset.opt; Pump.log("decision", { id: d.dataset.dec, opt: d.dataset.opt }); renderCoach(Pump.state); return; }
+    if (d) { X.decisions[d.dataset.dec] = d.dataset.opt; P.log("decision", { id: d.dataset.dec, opt: d.dataset.opt }); renderCoach(P.state); return; }
     const r = e.target.closest("[data-retry]");
-    if (r) { delete X.decisions[r.dataset.retry]; renderCoach(Pump.state); return; }
-    if (e.target.id === "hintBtn") { hintsShown++; renderCoach(Pump.state); }
-    if (e.target.id === "debriefBtn") { X.showDebrief = true; renderCoach(Pump.state); }
+    if (r) { delete X.decisions[r.dataset.retry]; renderCoach(P.state); return; }
+    if (e.target.id === "hintBtn") { hintsShown++; renderCoach(P.state); }
+    if (e.target.id === "debriefBtn") { X.showDebrief = true; renderCoach(P.state); }
   });
 
   function fmtClock(t) {
@@ -605,23 +723,23 @@
 
   // ------------------------------------------------------------ main loop
   function renderAll() {
-    const S = Pump.state;
-    renderLCD(S);
-    renderModules(S);
+    const S = P.state;
+    if (DEV === "sq") renderSq(S);
+    else { renderLCD(S); renderModules(S); }
     if (!scn || !(scn.practice || scn.noBedside)) renderBedside(S);
     if (scn) renderCoach(S);
     $("#clock").textContent = fmtClock(S.t);
     alarmAudio(S);
   }
   setInterval(() => {
-    const S = Pump.state;
-    Pump.tick(0.25 * speed);
-    if (scn && scn.tick) scn.tick(S, X, Pump);
+    const S = P.state;
+    P.tick(0.25 * speed);
+    if (scn && scn.tick) scn.tick(S, X, P);
     checkPractice(S);
     renderAll();
   }, 250);
   // Instant feedback for key presses (don't wait for the next tick)
-  Pump.onChange(() => requestAnimationFrame(renderAll));
+  [Pump, Spectrum].forEach((eng) => eng.onChange(() => { if (eng === P) requestAnimationFrame(renderAll); }));
 
   // Read-only hook for automated tests.
   window.ivpPractice = { get order() { return X && X.order; }, get result() { return X && X.result; } };
@@ -630,6 +748,7 @@
     sel.disabled = true;
     $("#restartBtn").hidden = true;
   }
+  if (DEV) setDevice(DEV, false); else showPicker();
   loadScenario(CFG.mode || store.get("ivp-scn") || "practice");
   fitPump();
 })();
