@@ -20,6 +20,14 @@ While a channel is selected and not yet started, the pump repeats a single remin
 
 A **Bedside** panel covers the hands-on steps: spike and prime, load the set, trace the line, roller clamp, hang the secondary higher, open the secondary clamp, check the site, clear air.
 
+## Using it in Blackboard
+
+**Embed (no grades):** in a Blackboard Document/Item, open the HTML source editor and paste
+`<iframe src="https://laurajobe.github.io/IV-INFUSION-PUMPS/" width="100%" height="1200" style="border:0" allow="autoplay" title="IV Pump Practice Lab"></iframe>`.
+If your institution blocks embedded sites, add it as a Link instead.
+
+**SCORM package (grades):** run `python3 tools/build_scorm.py IV-Pump-Practice-Lab-SCORM.zip` and upload the zip as a SCORM package. Practice mode reports the percent of orders programmed correctly as the score and marks the activity complete after 10 orders (change `ORDERS_TO_COMPLETE` in `js/scorm.js`). Mastery score is 80%.
+
 ## Files
 
 - `index.html`: page layout
@@ -29,7 +37,9 @@ A **Bedside** panel covers the hands-on steps: spike and prime, load the set, tr
 - `js/scenarios.js`: the modes in the dropdown (practice mode and free practice)
 - `js/practice.js`: random order generator and grading for practice mode
 - `js/app.js`: rendering and controls
+- `js/scorm.js`: optional SCORM 1.2 score reporting (does nothing outside an LMS)
 - `tools/build_single.py`: bundles everything into one HTML file for sharing
+- `tools/build_scorm.py`: builds the SCORM 1.2 zip for Blackboard or another LMS
 
 To edit a limit or add a drug, change `js/library.js`.
 

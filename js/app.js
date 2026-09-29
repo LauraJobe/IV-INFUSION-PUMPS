@@ -346,6 +346,7 @@
       practiceScore.streak++;
       if (practiceScore.streak > practiceScore.best) { practiceScore.best = practiceScore.streak; store.set("ivp-best", String(practiceScore.best)); }
     } else practiceScore.streak = 0;
+    window.dispatchEvent(new CustomEvent("ivp-result", { detail: { correct: practiceScore.correct, total: practiceScore.total, ok: r.ok } }));
   }
 
   function renderPractice(S) {
