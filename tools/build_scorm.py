@@ -13,7 +13,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parent.parent
 out = Path(sys.argv[1])
 js_files = sorted(str(p.relative_to(root)) for p in (root / "js").glob("*.js"))
-files = ["index.html", "css/pump.css", "js/config.js"] + js_files
+files = ["index.html", "manifest.webmanifest", "css/pump.css", "js/config.js"] + js_files
 
 config = 'window.IVP_CONFIG = { mode: "quiz", lockMode: true, lms: true };\n'
 html = (root / "index.html").read_text()
@@ -47,6 +47,7 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
     z.writestr("index.html", html)
     z.writestr("js/config.js", config)
     z.write(root / "css/pump.css", "css/pump.css")
+    z.write(root / "manifest.webmanifest", "manifest.webmanifest")
     for f in js_files:
         z.write(root / f, f)
 print(f"wrote {out} with {len(files)} files")

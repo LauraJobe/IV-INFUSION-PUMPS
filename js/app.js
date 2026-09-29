@@ -25,6 +25,7 @@
     $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.id === "tab-" + name)));
     $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
     store.set("ivp-tab", name);
+    if (name === "practice") requestAnimationFrame(fitPump);
   }
   const hashTab = location.hash.replace("#", "");
   showTab(["practice", "library", "basics"].includes(hashTab) ? hashTab : store.get("ivp-tab") || "practice");
@@ -71,6 +72,25 @@
     $$("[data-mk]", m).forEach((b) => b.addEventListener("click", () => { keyTone(); Pump.moduleKey(id, b.dataset.mk); }));
   });
 
+  // ------------------------------------------------------------ fit to screen
+  // Scale the whole pump (A | PC unit | B) to the available width so phones
+  // see the same layout as the real device instead of wrapping the modules.
+  function fitPump() {
+    const wrap = $(".pump-wrap"), pump = $("#pump");
+    if (!wrap || !pump || wrap.offsetParent === null) return;
+    pump.style.zoom = "";
+    const natural = pump.scrollWidth;
+    const avail = wrap.clientWidth;
+    let z = Math.min(1, avail / natural);
+    // Short screens (a phone held sideways): also fit the height so the
+    // whole pump, keypad included, is visible without scrolling.
+    if (window.innerHeight < 560) z = Math.min(z, Math.max(0.45, (window.innerHeight - 16) / pump.scrollHeight));
+    if (z < 0.995) pump.style.zoom = z.toFixed(3);
+  }
+  window.addEventListener("resize", fitPump);
+  window.addEventListener("orientationchange", () => setTimeout(fitPump, 250));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPump);
+
   // ------------------------------------------------------------ speed
   $$("#speedSeg button").forEach((b) => b.addEventListener("click", () => {
     speed = +b.dataset.speed;
@@ -86,7 +106,7 @@
   // Pump tones are near-pure sine beeps. Pitches and lengths were measured
   // from a recording of the real pump; the sound itself is synthesized here.
   function tone(freq, dur, when = 0, gain = 0.08, third = 0) {
-    if (!actx || !soundBox.checked) return;
+    if (!actx) return;
     const t = actx.currentTime + when;
     const g = actx.createGain();
     g.gain.setValueAtTime(0, t);
@@ -102,16 +122,20 @@
       o.start(t); o.stop(t + dur + 0.01);
     });
   }
+  // Haptics: a short buzz on devices with a vibration motor (Android).
+  // Devices without one (iPads, laptops) skip it silently.
+  function buzz(pattern, delayMs = 0) {
+    if (!("vibrate" in navigator)) return;
+    const go = () => { try { navigator.vibrate(pattern); } catch (e) { /* not supported */ } };
+    delayMs > 0 ? setTimeout(go, delayMs) : go();
+  }
   // SYSTEM ON: two short high beeps, then a lower longer tone.
-  function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); }
+  function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); buzz([60, 60, 60, 60, 120]); }
   // Every key press on a powered-on pump: one 1.2 kHz beep, about 0.1 s.
   function keyTone() {
     audioUnlock();
-    if (Pump.state.on) tone(1200, 0.1, 0, 0.07, 0.16);
+    if (Pump.state.on) { tone(1200, 0.1, 0, 0.07, 0.16); buzz(20); }
   }
-  const soundBox = $("#soundToggle");
-  soundBox.checked = store.get("ivp-sound") !== "off";
-  soundBox.addEventListener("change", () => store.set("ivp-sound", soundBox.checked ? "on" : "off"));
   // A channel is "selected but not started" from CHANNEL SELECT until START:
   // any step of the programming flow, or an edited (not yet started) change.
   const FLOW_SCREENS = ["infusionMenu", "list", "conc", "drugConfirm", "advisory", "setup", "weight", "program", "limit"];
@@ -125,7 +149,7 @@
   let lastRemind = 0;
   let lastBeep = 0;
   function alarmAudio(S) {
-    if (!soundBox.checked || !S.on || Date.now() < S.silencedUntil) return;
+    if (!S.on || Date.now() < S.silencedUntil) return;
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
     if (!alarms.length) {
       // Steady single reminder beep until the program is started.
@@ -144,7 +168,8 @@
     if (now < next - 260) return;
     const lead = now < next ? (next - now) / 1000 : 0;
     lastBeep = now < next + 260 ? next : now;
-    if (high) { tone(2200, 0.51, lead, 0.08, 0.07); tone(2200, 0.51, lead + 0.63, 0.08, 0.07); } else tone(2200, 0.25, lead, 0.06, 0.07);
+    if (high) { tone(2200, 0.51, lead, 0.08, 0.07); tone(2200, 0.51, lead + 0.63, 0.08, 0.07); buzz([500, 120, 500], lead * 1000); }
+    else { tone(2200, 0.25, lead, 0.06, 0.07); buzz(200, lead * 1000); }
   }
 
   // ------------------------------------------------------------ render pump
@@ -606,4 +631,5 @@
     $("#restartBtn").hidden = true;
   }
   loadScenario(CFG.mode || store.get("ivp-scn") || "practice");
+  fitPump();
 })();
