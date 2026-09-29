@@ -1,0 +1,9 @@
+{
+  "name": "IV Pump Practice Lab",
+  "short_name": "IV Pump Lab",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#e9eeec",
+  "theme_color": "#0e6a66"
+}

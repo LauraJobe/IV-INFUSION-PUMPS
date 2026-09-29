@@ -14,6 +14,10 @@
   let hintsShown = 0;
   const practiceScore = { correct: 0, total: 0, streak: 0, best: +(store.get("ivp-best") || 0) };
   let practiceFilter = store.get("ivp-spec") || "all";
+  // Optional settings injected by a build (e.g. the SCORM package locks the page to the check-off).
+  const CFG = window.IVP_CONFIG || {};
+  let quiz = null; // { count, specs, used, results, done }
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   // ------------------------------------------------------------ tabs
   $$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.id.replace("tab-", ""))));
@@ -21,6 +25,7 @@
     $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.id === "tab-" + name)));
     $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
     store.set("ivp-tab", name);
+    if (name === "practice") requestAnimationFrame(fitPump);
   }
   const hashTab = location.hash.replace("#", "");
   showTab(["practice", "library", "basics"].includes(hashTab) ? hashTab : store.get("ivp-tab") || "practice");
@@ -67,6 +72,25 @@
     $$("[data-mk]", m).forEach((b) => b.addEventListener("click", () => { keyTone(); Pump.moduleKey(id, b.dataset.mk); }));
   });
 
+  // ------------------------------------------------------------ fit to screen
+  // Scale the whole pump (A | PC unit | B) to the available width so phones
+  // see the same layout as the real device instead of wrapping the modules.
+  function fitPump() {
+    const wrap = $(".pump-wrap"), pump = $("#pump");
+    if (!wrap || !pump || wrap.offsetParent === null) return;
+    pump.style.zoom = "";
+    const natural = pump.scrollWidth;
+    const avail = wrap.clientWidth;
+    let z = Math.min(1, avail / natural);
+    // Short screens (a phone held sideways): also fit the height so the
+    // whole pump, keypad included, is visible without scrolling.
+    if (window.innerHeight < 560) z = Math.min(z, Math.max(0.45, (window.innerHeight - 16) / pump.scrollHeight));
+    if (z < 0.995) pump.style.zoom = z.toFixed(3);
+  }
+  window.addEventListener("resize", fitPump);
+  window.addEventListener("orientationchange", () => setTimeout(fitPump, 250));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPump);
+
   // ------------------------------------------------------------ speed
   $$("#speedSeg button").forEach((b) => b.addEventListener("click", () => {
     speed = +b.dataset.speed;
@@ -82,7 +106,7 @@
   // Pump tones are near-pure sine beeps. Pitches and lengths were measured
   // from a recording of the real pump; the sound itself is synthesized here.
   function tone(freq, dur, when = 0, gain = 0.08, third = 0) {
-    if (!actx || !soundBox.checked) return;
+    if (!actx) return;
     const t = actx.currentTime + when;
     const g = actx.createGain();
     g.gain.setValueAtTime(0, t);
@@ -98,16 +122,20 @@
       o.start(t); o.stop(t + dur + 0.01);
     });
   }
+  // Haptics: a short buzz on devices with a vibration motor (Android).
+  // Devices without one (iPads, laptops) skip it silently.
+  function buzz(pattern, delayMs = 0) {
+    if (!("vibrate" in navigator)) return;
+    const go = () => { try { navigator.vibrate(pattern); } catch (e) { /* not supported */ } };
+    delayMs > 0 ? setTimeout(go, delayMs) : go();
+  }
   // SYSTEM ON: two short high beeps, then a lower longer tone.
-  function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); }
+  function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); buzz([60, 60, 60, 60, 120]); }
   // Every key press on a powered-on pump: one 1.2 kHz beep, about 0.1 s.
   function keyTone() {
     audioUnlock();
-    if (Pump.state.on) tone(1200, 0.1, 0, 0.07, 0.16);
+    if (Pump.state.on) { tone(1200, 0.1, 0, 0.07, 0.16); buzz(20); }
   }
-  const soundBox = $("#soundToggle");
-  soundBox.checked = store.get("ivp-sound") !== "off";
-  soundBox.addEventListener("change", () => store.set("ivp-sound", soundBox.checked ? "on" : "off"));
   // A channel is "selected but not started" from CHANNEL SELECT until START:
   // any step of the programming flow, or an edited (not yet started) change.
   const FLOW_SCREENS = ["infusionMenu", "list", "conc", "drugConfirm", "advisory", "setup", "weight", "program", "limit"];
@@ -121,7 +149,7 @@
   let lastRemind = 0;
   let lastBeep = 0;
   function alarmAudio(S) {
-    if (!soundBox.checked || !S.on || Date.now() < S.silencedUntil) return;
+    if (!S.on || Date.now() < S.silencedUntil) return;
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
     if (!alarms.length) {
       // Steady single reminder beep until the program is started.
@@ -140,7 +168,8 @@
     if (now < next - 260) return;
     const lead = now < next ? (next - now) / 1000 : 0;
     lastBeep = now < next + 260 ? next : now;
-    if (high) { tone(2200, 0.51, lead, 0.08, 0.07); tone(2200, 0.51, lead + 0.63, 0.08, 0.07); } else tone(2200, 0.25, lead, 0.06, 0.07);
+    if (high) { tone(2200, 0.51, lead, 0.08, 0.07); tone(2200, 0.51, lead + 0.63, 0.08, 0.07); buzz([500, 120, 500], lead * 1000); }
+    else { tone(2200, 0.25, lead, 0.06, 0.07); buzz(200, lead * 1000); }
   }
 
   // ------------------------------------------------------------ render pump
@@ -308,17 +337,19 @@
 
   // ------------------------------------------------------------ scenarios
   const sel = $("#scenarioSelect");
-  const levels = [...new Set(SCENARIOS.map((s) => s.level))];
-  sel.innerHTML = levels.map((lv) => `<optgroup label="${lv}">${SCENARIOS.filter((s) => s.level === lv).map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</optgroup>`).join("");
+  const MODES = SCENARIOS.filter((s) => !s.lmsOnly || CFG.mode === s.id);
+  const levels = [...new Set(MODES.map((s) => s.level))];
+  sel.innerHTML = levels.map((lv) => `<optgroup label="${lv}">${MODES.filter((s) => s.level === lv).map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</optgroup>`).join("");
   sel.addEventListener("change", () => loadScenario(sel.value));
   $("#restartBtn").addEventListener("click", () => loadScenario(sel.value));
 
   function loadScenario(id) {
-    scn = SCENARIOS.find((s) => s.id === id) || SCENARIOS[0];
+    scn = MODES.find((s) => s.id === id) || MODES[0];
     sel.value = scn.id;
     X = { phase: 0, decisions: {}, met: {}, miss: {}, showDebrief: false };
     hintsShown = 0;
     document.body.classList.toggle("practice-mode", !!(scn.practice || scn.noBedside));
+    if (scn.quiz) startQuiz();
     if (scn.practice) newPracticeOrder(); else scn.setup(Pump);
     store.set("ivp-scn", scn.id);
     $("#scenarioSummary").textContent = scn.summary || "";
@@ -327,8 +358,30 @@
   }
 
   // ------------------------------------------------------------ practice mode
+  // Check-off: one order from each specialty (plus one extra), no drug repeated.
+  function startQuiz() {
+    const count = scn.count || 5;
+    const specs = shuffle(["medsurg", "icu", "ld", "peds"]);
+    while (specs.length < count) specs.push(shuffle(["medsurg", "icu", "ld", "peds"])[0]);
+    quiz = { count, specs: shuffle(specs), used: new Set(), results: [], done: false };
+  }
+
+  function quizOrder() {
+    const spec = quiz.specs[quiz.results.length];
+    let o = null;
+    for (let i = 0; i < 30; i++) { o = PRACTICE.newOrder(spec); if (o && !quiz.used.has(o.drugId)) break; }
+    quiz.used.add(o.drugId);
+    return o;
+  }
+
   function newPracticeOrder(same) {
-    const order = same && X.order ? X.order : PRACTICE.newOrder(practiceFilter);
+    if (scn.quiz && quiz.results.length >= quiz.count) {
+      quiz.done = true;
+      X = { phase: 0, decisions: {}, met: {}, miss: {}, order: null, result: null };
+      ["#patientBand", "#orders", "#goals"].forEach((s) => ($(s)._h = null));
+      return;
+    }
+    const order = scn.quiz ? quizOrder() : same && X.order ? X.order : PRACTICE.newOrder(practiceFilter);
     X = { phase: 0, decisions: {}, met: {}, miss: {}, order, result: null, held: false, showAnswer: false };
     PRACTICE.setup(Pump, order);
     X.logStart = Pump.state.log.length;
@@ -340,6 +393,14 @@
     const r = PRACTICE.evaluate(S, X.order, X);
     if (!r) return;
     X.result = r;
+    if (scn.quiz) {
+      quiz.results.push({ order: X.order, result: r });
+      if (quiz.results.length === quiz.count) {
+        const correct = quiz.results.filter((q) => q.result.ok).length;
+        window.dispatchEvent(new CustomEvent("ivp-quiz-done", { detail: { correct, total: quiz.count, pct: Math.round((correct / quiz.count) * 100) } }));
+      }
+      return;
+    }
     practiceScore.total++;
     if (r.ok) {
       practiceScore.correct++;
@@ -349,7 +410,22 @@
     window.dispatchEvent(new CustomEvent("ivp-result", { detail: { correct: practiceScore.correct, total: practiceScore.total, ok: r.ok } }));
   }
 
+  function renderQuizSummary() {
+    const correct = quiz.results.filter((q) => q.result.ok).length;
+    const pct = Math.round((correct / quiz.count) * 100);
+    ["#patientBand", "#orders", "#vitals", "#decisions", "#debrief"].forEach((s) => setHTML($(s), ""));
+    setHTML($("#goals"), `<div class="pr-head"><h3>Check-off results</h3></div>
+      <div class="pr-result"><strong>Score: ${pct}% (${correct} of ${quiz.count} correct)</strong>
+      ${CFG.lms ? `<p class="pr-math">Your score has been sent to your course. You can close this window.</p>` : ""}
+      <table class="pr-table"><thead><tr><th>Order</th><th>Result</th></tr></thead><tbody>
+      ${quiz.results.map((q, i) => `<tr class="${q.result.ok ? "ok" : "no"}"><td>${i + 1}. ${q.order.patient.unit}: ${q.order.text.split("<br>")[0]}${q.result.ok ? "" : `<div class="pr-math">${q.order.math}</div>`}</td><td>${q.result.ok ? "✓ Correct" : "✕ " + q.result.items.filter((x) => !x.ok).map((x) => x.label).join(", ")}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${CFG.lms ? "" : `<div class="pr-actions"><button class="btn-main" data-pr="newquiz">Start a new check-off</button></div>`}`);
+    setHTML($("#historyList"), "<li>Check-off complete.</li>");
+  }
+
   function renderPractice(S) {
+    if (scn.quiz && quiz.done) return renderQuizSummary();
     const o = X.order, p = o.patient;
     setHTML($("#patientBand"), `<dl class="band">
         <div class="name">${p.name}</div>
@@ -370,16 +446,21 @@
         ${r.items.map((i) => `<tr class="${i.ok ? "ok" : "no"}"><td>${i.ok ? "✓" : "✕"} ${i.label}</td><td>${i.want}</td><td>${i.got}</td></tr>`).join("")}
         </tbody></table>
         <p class="pr-math">${o.math}</p></div>
-        <div class="pr-actions"><button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}</div>`;
+        <div class="pr-actions">${scn.quiz
+          ? `<button class="btn-main" data-pr="next">${quiz.results.length < quiz.count ? `Next order (${quiz.results.length + 1} of ${quiz.count})` : "See my results"}</button>`
+          : `<button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}`}</div>`;
     } else {
       body = `<p class="pr-help">Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.</p>
-        <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button><button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button></div>
+        <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
         ${X.showAnswer ? `<div class="pr-answer"><ol>${o.steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
     }
-    setHTML($("#goals"), `<div class="pr-head"><h3>Practice mode</h3>
+    const head = scn.quiz
+      ? `<div class="pr-head"><h3>Check-off · order ${quiz.results.length + (X.result ? 0 : 1)} of ${quiz.count}</h3></div>
+         <div class="pr-score"><span>One attempt per order. Your score is the percent programmed correctly.</span></div>`
+      : `<div class="pr-head"><h3>Practice mode</h3>
         <label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label></div>
-      <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>
-      ${body}`);
+      <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>`;
+    setHTML($("#goals"), head + body);
     const hist = S.log.slice(X.logStart).slice(-20).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
   }
@@ -440,6 +521,7 @@
       else if (a === "retry") newPracticeOrder(true);
       else if (a === "answer") X.showAnswer = !X.showAnswer;
       else if (a === "hold") { X.held = true; checkPractice(Pump.state); }
+      else if (a === "newquiz") { startQuiz(); newPracticeOrder(); }
       renderCoach(Pump.state);
       return;
     }
@@ -543,5 +625,11 @@
 
   // Read-only hook for automated tests.
   window.ivpPractice = { get order() { return X && X.order; }, get result() { return X && X.result; } };
-  loadScenario(store.get("ivp-scn") || "practice");
+  if (CFG.lockMode) {
+    // Locked build (e.g. SCORM): only the configured mode is offered.
+    sel.disabled = true;
+    $("#restartBtn").hidden = true;
+  }
+  loadScenario(CFG.mode || store.get("ivp-scn") || "practice");
+  fitPump();
 })();

@@ -11,6 +11,12 @@ const SCENARIOS = [
     setup: () => {},
   },
   {
+    // Only offered in the SCORM (LMS) build, not on the public website.
+    id: "quiz", level: "Practice", title: "Check-off: 5 random orders", practice: true, quiz: true, count: 5, lmsOnly: true,
+    summary: "Five random orders from different specialties, one attempt each, then a score (percent of orders programmed correctly).",
+    setup: () => {},
+  },
+  {
     id: "free", level: "Practice", title: "Free practice: explore the pump",
     summary: "No order to follow. Start from power-off and try every screen. Tubing is already primed and loaded on both channels.",
     patient: null,

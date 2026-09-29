@@ -26,7 +26,7 @@ A **Bedside** panel covers the hands-on steps: spike and prime, load the set, tr
 `<iframe src="https://laurajobe.github.io/IV-INFUSION-PUMPS/" width="100%" height="1200" style="border:0" allow="autoplay" title="IV Pump Practice Lab"></iframe>`.
 If your institution blocks embedded sites, add it as a Link instead.
 
-**SCORM package (grades):** run `python3 tools/build_scorm.py IV-Pump-Practice-Lab-SCORM.zip` and upload the zip as a SCORM package. Practice mode reports the percent of orders programmed correctly as the score and marks the activity complete after 10 orders (change `ORDERS_TO_COMPLETE` in `js/scorm.js`). Mastery score is 80%.
+**SCORM package (grades):** run `python3 tools/build_scorm.py IV-Pump-Check-off-SCORM.zip` and upload the zip as a SCORM package. It opens as a check-off: 5 random orders from the practice order library (one from each specialty plus one more, no drug repeated), one attempt each. The score sent to the Grade Center is the percent programmed correctly (for example 4 of 5 = 80%). There is no pass/fail or mastery score. The check-off is not offered on the public website.
 
 ## Files
 
@@ -37,7 +37,7 @@ If your institution blocks embedded sites, add it as a Link instead.
 - `js/scenarios.js`: the modes in the dropdown (practice mode and free practice)
 - `js/practice.js`: random order generator and grading for practice mode
 - `js/app.js`: rendering and controls
-- `js/scorm.js`: optional SCORM 1.2 score reporting (does nothing outside an LMS)
+- `js/scorm.js`: SCORM 1.2 score reporting for the check-off (does nothing outside an LMS)
 - `tools/build_single.py`: bundles everything into one HTML file for sharing
 - `tools/build_scorm.py`: builds the SCORM 1.2 zip for Blackboard or another LMS
 
