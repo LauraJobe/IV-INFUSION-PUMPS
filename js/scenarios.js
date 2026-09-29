@@ -23,6 +23,12 @@ const G = {
 };
 
 const SCENARIOS = [
+  // ------------------------------------------------------------------ PRACTICE MODE
+  {
+    id: "practice", level: "Practice mode", title: "Random orders: program the pump", practice: true,
+    summary: "A new order every round from Med-Surg, ICU, L&D or Pediatrics. Lines are already primed and loaded: just program the pump and press START.",
+    setup: () => {},
+  },
   // ------------------------------------------------------------------
   {
     id: "free", level: "Open", title: "Free practice",

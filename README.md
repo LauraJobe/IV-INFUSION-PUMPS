@@ -12,6 +12,12 @@ A browser-based simulator where nursing students practice programming a large-vo
 4. Follow the manual's flow: Infusion Menu → Guardrails Drugs / IV Fluids → letter groups → concentration → *"…was selected. Is this correct?"* → clinical advisory → Drug Setup (patient weight) → RATE / VTBI / DOSE → **START**.
 5. Handle soft limits (*Proceed? Yes/No*), hard limits (*Reprogram*), secondary infusions, titrations, and alarms.
 
+## Practice mode
+
+Choose **Random orders: program the pump** at the top of the scenario list (it opens by default). Each round is a new made-up patient and order from Med-Surg, ICU, L&D or Pediatrics: fluids, weight-based and titrated drips, IVPB secondaries, peds boluses, blood, and some orders above a hard limit that should be held. Lines are already primed and loaded, so students only program the pump. On START the order is checked item by item (entry, concentration, weight, dose, rate, VTBI) with the math shown. A specialty filter, score and streak are included.
+
+While a channel is selected and not yet started, the pump repeats a single reminder beep until START (SILENCE quiets it).
+
 A **Bedside** panel covers the hands-on steps: spike and prime, load the set, trace the line, roller clamp, hang the secondary higher, open the secondary clamp, check the site, clear air.
 
 ## Scenarios (from the ATU Simulation Hospital charts in Notion)
@@ -40,6 +46,7 @@ Each scenario shows the patient armband (with patient ID), the provider order, a
 - `js/library.js`: practice drug library, profiles (Med-Surg, ICU/PCU, L&D/Postpartum, Pediatrics) and dose math
 - `js/pump.js`: pump engine (screens, keys, Guardrails checks, alarms, secondary, titration)
 - `js/scenarios.js`: patient scenarios and checklists
+- `js/practice.js`: random order generator and grading for practice mode
 - `js/app.js`: rendering and controls
 - `tools/build_single.py`: bundles everything into one HTML file for sharing
 

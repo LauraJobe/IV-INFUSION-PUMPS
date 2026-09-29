@@ -12,6 +12,8 @@
   let scn = null;   // current scenario definition
   let X = null;     // scenario runtime state
   let hintsShown = 0;
+  const practiceScore = { correct: 0, total: 0, streak: 0, best: +(store.get("ivp-best") || 0) };
+  let practiceFilter = store.get("ivp-spec") || "all";
 
   // ------------------------------------------------------------ tabs
   $$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.id.replace("tab-", ""))));
@@ -106,11 +108,26 @@
   const soundBox = $("#soundToggle");
   soundBox.checked = store.get("ivp-sound") !== "off";
   soundBox.addEventListener("change", () => store.set("ivp-sound", soundBox.checked ? "on" : "off"));
+  // A channel is "selected but not started" from CHANNEL SELECT until START:
+  // any step of the programming flow, or an edited (not yet started) change.
+  const FLOW_SCREENS = ["infusionMenu", "list", "conc", "drugConfirm", "advisory", "setup", "weight", "program", "limit"];
+  function channelPending(S) {
+    const sc = S.screen;
+    if (!FLOW_SCREENS.includes(sc.id)) return false;
+    const d = sc.draft || (sc.back && sc.back.draft);
+    if (d && d.titrate) return d.changed;
+    return true;
+  }
+  let lastRemind = 0;
   let lastBeep = 0;
   function alarmAudio(S) {
     if (!soundBox.checked || !S.on || Date.now() < S.silencedUntil) return;
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
-    if (!alarms.length) return;
+    if (!alarms.length) {
+      // Steady single reminder beep until the program is started.
+      if (channelPending(S) && Date.now() - lastRemind >= 1500) { lastRemind = Date.now(); tone(2200, 0.25, 0, 0.05, 0.07); }
+      return;
+    }
     const high = alarms.some((a) => a.level === "high");
     // High priority (occlusion, air in line, infusion complete): two 0.5 s
     // beeps at 2.2 kHz, 0.12 s apart, repeating every ~2 s (measured from the
@@ -218,8 +235,9 @@
   }
 
   // ------------------------------------------------------------ bedside
+  const FREE_BAGS = SCENARIOS.find((s) => s.id === "free").bags;
   function bagsFor(secondary) {
-    const list = scn && scn.bags && scn.bags.length ? scn.bags : SCENARIOS[0].bags;
+    const list = scn && scn.bags && scn.bags.length ? scn.bags : FREE_BAGS;
     return list.map((b, i) => ({ b, i })).filter(({ b }) => !!b.secondary === secondary);
   }
 
@@ -281,7 +299,7 @@
     const btn = e.target.closest("[data-bs]");
     if (!btn) return;
     const id = btn.dataset.ch, act = btn.dataset.bs;
-    const list = scn && scn.bags && scn.bags.length ? scn.bags : SCENARIOS[0].bags;
+    const list = scn && scn.bags && scn.bags.length ? scn.bags : FREE_BAGS;
     let arg;
     if (act === "prime") { const sel = $("#bagSel" + id); arg = list[+sel.value]; arg = { name: arg.name, vol: arg.vol }; }
     if (act === "hangSecondary") { const sel = $("#secSel" + id); arg = list[+sel.value]; arg = { name: arg.name, vol: arg.vol }; }
@@ -300,14 +318,73 @@
     sel.value = scn.id;
     X = { phase: 0, decisions: {}, met: {}, miss: {}, showDebrief: false };
     hintsShown = 0;
-    scn.setup(Pump);
+    document.body.classList.toggle("practice-mode", !!scn.practice);
+    if (scn.practice) newPracticeOrder(); else scn.setup(Pump);
     store.set("ivp-scn", scn.id);
     $("#scenarioSummary").textContent = scn.summary || "";
     $("#decisions")._h = null;
     renderCoach(Pump.state);
   }
 
+  // ------------------------------------------------------------ practice mode
+  function newPracticeOrder(same) {
+    const order = same && X.order ? X.order : PRACTICE.newOrder(practiceFilter);
+    X = { phase: 0, decisions: {}, met: {}, miss: {}, order, result: null, held: false, showAnswer: false };
+    PRACTICE.setup(Pump, order);
+    X.logStart = Pump.state.log.length;
+    ["#patientBand", "#orders", "#goals", "#decisions", "#debrief"].forEach((s) => ($(s)._h = null));
+  }
+
+  function checkPractice(S) {
+    if (!scn || !scn.practice || !X.order || X.result) return;
+    const r = PRACTICE.evaluate(S, X.order, X);
+    if (!r) return;
+    X.result = r;
+    practiceScore.total++;
+    if (r.ok) {
+      practiceScore.correct++;
+      practiceScore.streak++;
+      if (practiceScore.streak > practiceScore.best) { practiceScore.best = practiceScore.streak; store.set("ivp-best", String(practiceScore.best)); }
+    } else practiceScore.streak = 0;
+  }
+
+  function renderPractice(S) {
+    const o = X.order, p = o.patient;
+    setHTML($("#patientBand"), `<dl class="band">
+        <div class="name">${p.name}</div>
+        <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
+        <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
+        <dt>Unit</dt><dd>${p.unit} <span class="src">(profile already selected)</span></dd></dl>`);
+    setHTML($("#orders"), `<h3>Provider order</h3><p>${o.text}</p>`);
+    setHTML($("#vitals"), "");
+    setHTML($("#decisions"), "");
+    setHTML($("#debrief"), "");
+    const sc = practiceScore;
+    const specOpts = Object.entries(PRACTICE.SPECIALTIES).map(([k, v]) => `<option value="${k}"${k === practiceFilter ? " selected" : ""}>${v}</option>`).join("");
+    let body;
+    if (X.result) {
+      const r = X.result;
+      body = `<div class="pr-result ${r.ok ? "good" : "bad"}"><strong>${r.ok ? "Correct" : "Not quite"}</strong>
+        <table class="pr-table"><thead><tr><th></th><th>Order needs</th><th>You programmed</th></tr></thead><tbody>
+        ${r.items.map((i) => `<tr class="${i.ok ? "ok" : "no"}"><td>${i.ok ? "✓" : "✕"} ${i.label}</td><td>${i.want}</td><td>${i.got}</td></tr>`).join("")}
+        </tbody></table>
+        <p class="pr-math">${o.math}</p></div>
+        <div class="pr-actions"><button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}</div>`;
+    } else {
+      body = `<p class="pr-help">Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.</p>
+        <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button><button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button></div>
+        ${X.showAnswer ? `<div class="pr-answer"><ol>${o.steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
+    }
+    setHTML($("#goals"), `<div class="pr-head"><h3>Practice mode</h3>
+        <label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label></div>
+      <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>
+      ${body}`);
+    const hist = S.log.slice(X.logStart).slice(-20).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
+    setHTML($("#historyList"), hist || "<li>No events yet.</li>");
+  }
+
   function renderCoach(S) {
+    if (scn.practice) return renderPractice(S);
     const p = scn.patient;
     setHTML($("#patientBand"), p ? `<dl class="band">
         <div class="name">${p.name}</div>
@@ -351,7 +428,20 @@
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
   }
 
+  $("#coach").addEventListener("change", (e) => {
+    if (e.target.id === "specSel") { practiceFilter = e.target.value; store.set("ivp-spec", practiceFilter); newPracticeOrder(); renderCoach(Pump.state); }
+  });
   $("#coach").addEventListener("click", (e) => {
+    const pr = e.target.closest("[data-pr]");
+    if (pr) {
+      const a = pr.dataset.pr;
+      if (a === "next" || a === "skip") newPracticeOrder();
+      else if (a === "retry") newPracticeOrder(true);
+      else if (a === "answer") X.showAnswer = !X.showAnswer;
+      else if (a === "hold") { X.held = true; checkPractice(Pump.state); }
+      renderCoach(Pump.state);
+      return;
+    }
     const d = e.target.closest("[data-dec]");
     if (d) { X.decisions[d.dataset.dec] = d.dataset.opt; Pump.log("decision", { id: d.dataset.dec, opt: d.dataset.opt }); renderCoach(Pump.state); return; }
     const r = e.target.closest("[data-retry]");
@@ -435,7 +525,7 @@
     const S = Pump.state;
     renderLCD(S);
     renderModules(S);
-    renderBedside(S);
+    if (!scn || !scn.practice) renderBedside(S);
     if (scn) renderCoach(S);
     $("#clock").textContent = fmtClock(S.t);
     alarmAudio(S);
@@ -444,10 +534,13 @@
     const S = Pump.state;
     Pump.tick(0.25 * speed);
     if (scn && scn.tick) scn.tick(S, X, Pump);
+    checkPractice(S);
     renderAll();
   }, 250);
   // Instant feedback for key presses (don't wait for the next tick)
   Pump.onChange(() => requestAnimationFrame(renderAll));
 
-  loadScenario(store.get("ivp-scn") || "free");
+  // Read-only hook for automated tests.
+  window.ivpPractice = { get order() { return X && X.order; }, get result() { return X && X.result; } };
+  loadScenario(store.get("ivp-scn") || "practice");
 })();
