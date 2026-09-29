@@ -1,12 +1,11 @@
 /*
- * Optional SCORM 1.2 reporting. When the page runs inside an LMS (for
- * example a Blackboard SCORM package), practice-mode results are sent as a
- * score (percent of orders programmed correctly) and the activity is marked
- * complete after ORDERS_TO_COMPLETE orders. Outside an LMS this does nothing.
+ * Optional SCORM 1.2 reporting. Inside an LMS (for example a Blackboard
+ * SCORM package) the check-off sends its score: the percent of the orders
+ * programmed correctly. No pass/fail or completion rule is applied; the
+ * attempt is closed when the check-off ends so the LMS records the score.
+ * Outside an LMS this does nothing.
  */
 (() => {
-  const ORDERS_TO_COMPLETE = 10;
-
   function findAPI(win) {
     for (let i = 0; win && i < 10; i++) {
       try { if (win.API) return win.API; } catch (e) { return null; }
@@ -20,16 +19,14 @@
   if (!api) return;
 
   api.LMSInitialize("");
-  const prior = api.LMSGetValue("cmi.core.lesson_status");
-  if (!prior || prior === "not attempted") api.LMSSetValue("cmi.core.lesson_status", "incomplete");
   const started = Date.now();
 
-  window.addEventListener("ivp-result", (e) => {
-    const { correct, total } = e.detail;
+  window.addEventListener("ivp-quiz-done", (e) => {
     api.LMSSetValue("cmi.core.score.min", "0");
     api.LMSSetValue("cmi.core.score.max", "100");
-    api.LMSSetValue("cmi.core.score.raw", String(Math.round((correct / total) * 100)));
-    if (total >= ORDERS_TO_COMPLETE) api.LMSSetValue("cmi.core.lesson_status", "completed");
+    api.LMSSetValue("cmi.core.score.raw", String(e.detail.pct));
+    // Marks the attempt finished so the score is recorded; it is not a grade rule.
+    api.LMSSetValue("cmi.core.lesson_status", "completed");
     api.LMSCommit("");
   });
 

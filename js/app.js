@@ -14,6 +14,10 @@
   let hintsShown = 0;
   const practiceScore = { correct: 0, total: 0, streak: 0, best: +(store.get("ivp-best") || 0) };
   let practiceFilter = store.get("ivp-spec") || "all";
+  // Optional settings injected by a build (e.g. the SCORM package locks the page to the check-off).
+  const CFG = window.IVP_CONFIG || {};
+  let quiz = null; // { count, specs, used, results, done }
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   // ------------------------------------------------------------ tabs
   $$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.id.replace("tab-", ""))));
@@ -308,17 +312,19 @@
 
   // ------------------------------------------------------------ scenarios
   const sel = $("#scenarioSelect");
-  const levels = [...new Set(SCENARIOS.map((s) => s.level))];
-  sel.innerHTML = levels.map((lv) => `<optgroup label="${lv}">${SCENARIOS.filter((s) => s.level === lv).map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</optgroup>`).join("");
+  const MODES = SCENARIOS.filter((s) => !s.lmsOnly || CFG.mode === s.id);
+  const levels = [...new Set(MODES.map((s) => s.level))];
+  sel.innerHTML = levels.map((lv) => `<optgroup label="${lv}">${MODES.filter((s) => s.level === lv).map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</optgroup>`).join("");
   sel.addEventListener("change", () => loadScenario(sel.value));
   $("#restartBtn").addEventListener("click", () => loadScenario(sel.value));
 
   function loadScenario(id) {
-    scn = SCENARIOS.find((s) => s.id === id) || SCENARIOS[0];
+    scn = MODES.find((s) => s.id === id) || MODES[0];
     sel.value = scn.id;
     X = { phase: 0, decisions: {}, met: {}, miss: {}, showDebrief: false };
     hintsShown = 0;
     document.body.classList.toggle("practice-mode", !!(scn.practice || scn.noBedside));
+    if (scn.quiz) startQuiz();
     if (scn.practice) newPracticeOrder(); else scn.setup(Pump);
     store.set("ivp-scn", scn.id);
     $("#scenarioSummary").textContent = scn.summary || "";
@@ -327,8 +333,30 @@
   }
 
   // ------------------------------------------------------------ practice mode
+  // Check-off: one order from each specialty (plus one extra), no drug repeated.
+  function startQuiz() {
+    const count = scn.count || 5;
+    const specs = shuffle(["medsurg", "icu", "ld", "peds"]);
+    while (specs.length < count) specs.push(shuffle(["medsurg", "icu", "ld", "peds"])[0]);
+    quiz = { count, specs: shuffle(specs), used: new Set(), results: [], done: false };
+  }
+
+  function quizOrder() {
+    const spec = quiz.specs[quiz.results.length];
+    let o = null;
+    for (let i = 0; i < 30; i++) { o = PRACTICE.newOrder(spec); if (o && !quiz.used.has(o.drugId)) break; }
+    quiz.used.add(o.drugId);
+    return o;
+  }
+
   function newPracticeOrder(same) {
-    const order = same && X.order ? X.order : PRACTICE.newOrder(practiceFilter);
+    if (scn.quiz && quiz.results.length >= quiz.count) {
+      quiz.done = true;
+      X = { phase: 0, decisions: {}, met: {}, miss: {}, order: null, result: null };
+      ["#patientBand", "#orders", "#goals"].forEach((s) => ($(s)._h = null));
+      return;
+    }
+    const order = scn.quiz ? quizOrder() : same && X.order ? X.order : PRACTICE.newOrder(practiceFilter);
     X = { phase: 0, decisions: {}, met: {}, miss: {}, order, result: null, held: false, showAnswer: false };
     PRACTICE.setup(Pump, order);
     X.logStart = Pump.state.log.length;
@@ -340,6 +368,14 @@
     const r = PRACTICE.evaluate(S, X.order, X);
     if (!r) return;
     X.result = r;
+    if (scn.quiz) {
+      quiz.results.push({ order: X.order, result: r });
+      if (quiz.results.length === quiz.count) {
+        const correct = quiz.results.filter((q) => q.result.ok).length;
+        window.dispatchEvent(new CustomEvent("ivp-quiz-done", { detail: { correct, total: quiz.count, pct: Math.round((correct / quiz.count) * 100) } }));
+      }
+      return;
+    }
     practiceScore.total++;
     if (r.ok) {
       practiceScore.correct++;
@@ -349,7 +385,22 @@
     window.dispatchEvent(new CustomEvent("ivp-result", { detail: { correct: practiceScore.correct, total: practiceScore.total, ok: r.ok } }));
   }
 
+  function renderQuizSummary() {
+    const correct = quiz.results.filter((q) => q.result.ok).length;
+    const pct = Math.round((correct / quiz.count) * 100);
+    ["#patientBand", "#orders", "#vitals", "#decisions", "#debrief"].forEach((s) => setHTML($(s), ""));
+    setHTML($("#goals"), `<div class="pr-head"><h3>Check-off results</h3></div>
+      <div class="pr-result"><strong>Score: ${pct}% (${correct} of ${quiz.count} correct)</strong>
+      ${CFG.lms ? `<p class="pr-math">Your score has been sent to your course. You can close this window.</p>` : ""}
+      <table class="pr-table"><thead><tr><th>Order</th><th>Result</th></tr></thead><tbody>
+      ${quiz.results.map((q, i) => `<tr class="${q.result.ok ? "ok" : "no"}"><td>${i + 1}. ${q.order.patient.unit}: ${q.order.text.split("<br>")[0]}${q.result.ok ? "" : `<div class="pr-math">${q.order.math}</div>`}</td><td>${q.result.ok ? "✓ Correct" : "✕ " + q.result.items.filter((x) => !x.ok).map((x) => x.label).join(", ")}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${CFG.lms ? "" : `<div class="pr-actions"><button class="btn-main" data-pr="newquiz">Start a new check-off</button></div>`}`);
+    setHTML($("#historyList"), "<li>Check-off complete.</li>");
+  }
+
   function renderPractice(S) {
+    if (scn.quiz && quiz.done) return renderQuizSummary();
     const o = X.order, p = o.patient;
     setHTML($("#patientBand"), `<dl class="band">
         <div class="name">${p.name}</div>
@@ -370,16 +421,21 @@
         ${r.items.map((i) => `<tr class="${i.ok ? "ok" : "no"}"><td>${i.ok ? "✓" : "✕"} ${i.label}</td><td>${i.want}</td><td>${i.got}</td></tr>`).join("")}
         </tbody></table>
         <p class="pr-math">${o.math}</p></div>
-        <div class="pr-actions"><button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}</div>`;
+        <div class="pr-actions">${scn.quiz
+          ? `<button class="btn-main" data-pr="next">${quiz.results.length < quiz.count ? `Next order (${quiz.results.length + 1} of ${quiz.count})` : "See my results"}</button>`
+          : `<button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}`}</div>`;
     } else {
       body = `<p class="pr-help">Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.</p>
-        <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button><button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button></div>
+        <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
         ${X.showAnswer ? `<div class="pr-answer"><ol>${o.steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
     }
-    setHTML($("#goals"), `<div class="pr-head"><h3>Practice mode</h3>
+    const head = scn.quiz
+      ? `<div class="pr-head"><h3>Check-off · order ${quiz.results.length + (X.result ? 0 : 1)} of ${quiz.count}</h3></div>
+         <div class="pr-score"><span>One attempt per order. Your score is the percent programmed correctly.</span></div>`
+      : `<div class="pr-head"><h3>Practice mode</h3>
         <label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label></div>
-      <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>
-      ${body}`);
+      <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>`;
+    setHTML($("#goals"), head + body);
     const hist = S.log.slice(X.logStart).slice(-20).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
   }
@@ -440,6 +496,7 @@
       else if (a === "retry") newPracticeOrder(true);
       else if (a === "answer") X.showAnswer = !X.showAnswer;
       else if (a === "hold") { X.held = true; checkPractice(Pump.state); }
+      else if (a === "newquiz") { startQuiz(); newPracticeOrder(); }
       renderCoach(Pump.state);
       return;
     }
@@ -543,5 +600,10 @@
 
   // Read-only hook for automated tests.
   window.ivpPractice = { get order() { return X && X.order; }, get result() { return X && X.result; } };
-  loadScenario(store.get("ivp-scn") || "practice");
+  if (CFG.lockMode) {
+    // Locked build (e.g. SCORM): only the configured mode is offered.
+    sel.disabled = true;
+    $("#restartBtn").hidden = true;
+  }
+  loadScenario(CFG.mode || store.get("ivp-scn") || "practice");
 })();
