@@ -568,3 +568,7 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
   .sq-dripping .drop { animation: none; opacity: 1; }
 }
 .picking .simbar { display: none; }
+
+/* Answer steps and hints are normal numbered lists, not checklist rows. */
+.goals .pr-answer ol, .goals ol.hintlist { list-style: decimal; display: block; padding-left: 22px; }
+.goals .pr-answer li, .goals .hintlist li { display: list-item; margin-bottom: 6px; }
