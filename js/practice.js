@@ -357,5 +357,41 @@ const PRACTICE = (() => {
     return { ok: items.every((i) => i.ok), items };
   }
 
-  return { SPECIALTIES, newOrder, setup, evaluate };
+  // Steps for the single-channel pump (spectrum.js), built from the order.
+  const KEYS = { 1: "ABC", 2: "DEF", 3: "GHI", 4: "JKL", 5: "MNO", 6: "PQR", 7: "STU", 8: "VWX", 9: "YZ" };
+  const TIMES = ["once", "twice", "3 times"];
+  function letterKeys(name) {
+    const L = name.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2).split("");
+    const keyOf = (c) => Object.keys(KEYS).find((k) => KEYS[k].includes(c));
+    return L.map((c, i) => {
+      const k = keyOf(c), n = KEYS[k].indexOf(c);
+      const wait = i > 0 && keyOf(L[i - 1]) === k ? "wait a second, then " : "";
+      return `${wait}<b>${c}</b> = key ${k} ${TIMES[n]}`;
+    }).join(", ");
+  }
+  const hhmm = (min) => (min >= 60 ? `${Math.floor(min / 60)}${String(min % 60).padStart(2, "0")}` : String(min));
+
+  function sqSteps(o) {
+    const d = o.drug, c = o.conc;
+    const find = `Drug Search: type ${letterKeys(d.name)} → pick <b>${d.name}</b> with ▲▼ → OK${d.concs.length > 1 ? ` → concentration <b>${concLabel(d, c)}</b> → OK` : ""} → CONFIRM <b>yes</b>${d.highAlert ? " → advisory <b>continue</b>" : ""}`;
+    const startIt = "Check the screen against the order → <b>RUN/STOP</b> → Check Flow <b>yes</b>";
+    if (o.kind === "titrate") return ["RUN screen → <b>dose change</b>", `Type ${fmtNum(o.dose, 3)} → OK (rate becomes ${fmtNum(o.rate, 1)} mL/hr)`, "<b>RUN/STOP</b> to apply the new dose"];
+    if (o.kind === "secondary") return ["<b>RUN/STOP</b> to stop the primary → <b>program pri/sec</b> → <b>program secndry</b>", find,
+      `VTBI shows ${fmtNum(o.vtbi)} (the bag) → OK → reminder popup → OK`, `Time <b>${hhmm(o.minutes)}</b> (${durText(o.minutes)}) → OK (rate ${fmtNum(o.rate, 1)} mL/hr)`, "<b>RUN/STOP</b> → Secondary Check Flow <b>yes</b>"];
+    if (o.kind === "hold") return [find, `${o.perKg ? `Patient Weight ${o.patient.weight} → OK, then ` : ""}Dose ${fmtNum(o.dose, 3)} → OK. The pump shows a hard-limit alert.`, "Press OK on the alert, then click “Can't give: hold and clarify” in the practice panel."];
+    const ivpb = /IVPB/i.test(d.cls) && !d.dose;
+    const steps = [find];
+    if (ivpb) steps.push("Delivery bag: <b>Primary Bag</b> → OK");
+    if (d.dose && o.dose != null) {
+      steps.push(`${o.perKg ? `Patient Weight <b>${o.patient.weight}</b> → OK → ` : ""}Dose <b>${fmtNum(o.dose, 3)}</b> → OK → VTBI <b>${fmtNum(o.vtbi)}</b> → OK`);
+    } else if (ivpb) {
+      steps.push(`VTBI ${fmtNum(o.vtbi)} → OK → Time or Rate <b>${fmtNum(o.rate, 1)}</b> → OK`);
+    } else {
+      steps.push(`Rate <b>${fmtNum(o.rate, 1)}</b> → OK → VTBI <b>${fmtNum(o.vtbi)}</b> → OK`);
+    }
+    steps.push(startIt);
+    return steps;
+  }
+
+  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps };
 })();

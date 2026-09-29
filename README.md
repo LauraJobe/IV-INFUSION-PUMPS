@@ -2,6 +2,13 @@
 
 A browser-based simulator where nursing students practice programming a large-volume IV pump with a Guardrails-style drug library. The interface and button flow follow the BD Alaris™ System with Guardrails™ Suite MX user manual (PC unit with soft keys, pump modules on each side).
 
+Students first **choose a pump** from two drawings (no logos):
+
+- **Modular pump**: center screen with a channel module on each side (Alaris-style workflow).
+- **Single-channel pump**: color screen, four round soft keys, ON/OFF · SCAN · OK · RUN/STOP, a keypad that also types letters, and the door on the right (workflow from the Baxter Spectrum IQ operator manual: New Patient → care area → Drug Search by first letters → concentration → CONFIRM → advisory → weight/dose/VTBI → RUN/STOP → Check Flow; secondaries by stopping the pump → program pri/sec → program secndry; dose change from the RUN screen).
+
+Practice mode, free practice, the check-off, grading and the drug library are shared by both pumps. **Change pump** switches at any time; the choice is remembered on that device.
+
 **Open `index.html` in any browser.** No install, no internet needed except for fonts. It also works on GitHub Pages.
 
 ## What students do
@@ -33,7 +40,8 @@ If your institution blocks embedded sites, add it as a Link instead.
 - `index.html`: page layout
 - `css/pump.css`: styling
 - `js/library.js`: practice drug library, profiles (Med-Surg, ICU/PCU, L&D/Postpartum, Pediatrics) and dose math
-- `js/pump.js`: pump engine (screens, keys, Guardrails checks, alarms, secondary, titration)
+- `js/pump.js`: modular pump engine (screens, keys, Guardrails checks, alarms, secondary, titration)
+- `js/spectrum.js`: single-channel pump engine (same log events, so practice grading is shared)
 - `js/scenarios.js`: the modes in the dropdown (practice mode and free practice)
 - `js/practice.js`: random order generator and grading for practice mode
 - `js/app.js`: rendering and controls
