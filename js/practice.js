@@ -22,8 +22,11 @@ const PRACTICE = (() => {
   const LAST = ["Abernathy", "Blackwell", "Castillo", "Dunmore", "Ellison", "Fairbanks", "Garrison", "Holloway", "Iverson", "Jennings", "Kowalski", "Lindqvist", "Montoya", "Nakamura", "Okafor", "Pruitt", "Quintero", "Ramsey", "Stroud", "Takahashi", "Underwood", "Vasquez", "Whitfield", "Yates", "Zeller", "Beaumont", "Carver", "Dalton", "Everly", "Fontaine"];
   const KID_FIRST = ["Ella", "Mason", "Aria", "Jayden", "Lily", "Caleb", "Nora", "Eli", "Maya", "Wyatt", "Zoe", "Levi"];
 
-  // Rate or dose values used in the simulation scenarios, avoided here.
-  const EXCLUDE = new Set(["ns:10", "lr:125", "ceftriaxone:100", "cefazolin:200", "oxytocin:d2", "oxytocin:d4", "oxytocinPP:334", "oxytocinPP:95", "nsBolus:280", "nsBolus:999", "prbc:150", "heparin:d18", "heparin:d20", "norepinephrine:d2", "norepinephrine:d4", "ns:125", "nitroglycerin:d5", "nitroglycerin:d10", "d5halfnsk:50", "d5ns:125", "d5ns:30", "d5halfns:150"]);
+  // Values reserved for other course activities are skipped. Stored as
+  // hashes so the list itself does not reveal them.
+  const hash = (str) => { let x = 5381; for (const ch of str) x = ((x * 33) ^ ch.charCodeAt(0)) >>> 0; return x.toString(36); };
+  const EXCLUDE = new Set(["2zo4oz", "nx3sif", "13ordr0", "117mdw2", "5j5p2w", "5j5p32", "1wo48hm", "1jw4abm", "hwgyzj", "hwh4ho", "1mda3oo", "7c3vq3", "7c3vow", "h7a11", "h7a0z", "ro08us", "ii3qyp", "16cja39", "16jr6ou", "aen5ad", "lu8h2o", "16ldk9w"]);
+  const excluded = (key) => EXCLUDE.has(hash(key));
 
   function patient(spec) {
     if (spec === "peds") {
@@ -280,7 +283,7 @@ const PRACTICE = (() => {
       const spec = filter && filter !== "all" ? filter : pick(Object.keys(GEN));
       const o = pick(GEN[spec])();
       if (!o) continue;
-      if (EXCLUDE.has(`${o.drugId}:${o.rate}`) || (o.dose != null && EXCLUDE.has(`${o.drugId}:d${o.dose}`))) continue;
+      if (excluded(`${o.drugId}:${o.rate}`) || (o.dose != null && excluded(`${o.drugId}:d${o.dose}`))) continue;
       o.patient.mrn = String(randInt(400000, 899999));
       o.patient.unit = UNIT[o.spec];
       o.profile = o.spec;

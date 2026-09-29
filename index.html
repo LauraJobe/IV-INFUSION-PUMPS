@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>IV Pump Practice Lab</title>
-<meta name="description" content="Practice programming a large-volume IV pump with a Guardrails-style drug library, using orders from the ATU Simulation Hospital patients.">
+<meta name="description" content="Practice programming a large-volume IV pump with a Guardrails-style drug library, with random practice orders across Med-Surg, ICU, L&amp;D and Pediatrics.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;600;700&display=swap">
@@ -93,11 +93,11 @@
 
       <aside class="coach" id="coach">
         <div class="panel picker">
-          <label for="scenarioSelect">Scenario</label>
+          <label for="scenarioSelect">Mode</label>
           <select id="scenarioSelect"></select>
           <p class="summary" id="scenarioSummary"></p>
           <div class="row">
-            <button class="btn-plain" id="restartBtn">Restart scenario</button>
+            <button class="btn-plain" id="restartBtn">Restart</button>
           </div>
         </div>
         <div id="patientBand"></div>
@@ -181,12 +181,12 @@
 concentration (per mL) = drug amount in bag ÷ bag volume (mL)<br>
 mL/h = dose per hr ÷ concentration<br><br>
 units/kg/hr &nbsp;: mL/h = (dose × kg) ÷ (units/mL)<br>
-&nbsp;&nbsp;Heparin 18 units/kg/hr × 80 kg = 1,440 units/hr ÷ 100 units/mL = <b>14.4 mL/h</b><br>
+&nbsp;&nbsp;Heparin 15 units/kg/hr × 70 kg = 1,050 units/hr ÷ 100 units/mL = <b>10.5 mL/h</b><br>
 mcg/min &nbsp;&nbsp;&nbsp;&nbsp;: mL/h = (dose × 60) ÷ (mcg/mL)<br>
-&nbsp;&nbsp;Norepinephrine 4 mg/250 mL = 16 mcg/mL; 2 mcg/min × 60 = 120 ÷ 16 = <b>7.5 mL/h</b><br>
+&nbsp;&nbsp;Norepinephrine 8 mg/250 mL = 32 mcg/mL; 6 mcg/min × 60 = 360 ÷ 32 = <b>11.3 mL/h</b><br>
 mcg/kg/min &nbsp;: mL/h = (dose × kg × 60) ÷ (mcg/mL)<br>
-milliunits/min: Oxytocin 30 units/500 mL = 60 mU/mL; 2 mU/min × 60 = 120 ÷ 60 = <b>2 mL/h</b><br>
-volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(100 mL over 30 min = 100 ÷ 0.5 = <b>200 mL/h</b>)
+milliunits/min: Oxytocin 30 units/500 mL = 60 mU/mL; 6 mU/min × 60 = 360 ÷ 60 = <b>6 mL/h</b><br>
+volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(250 mL over 90 min = 250 ÷ 1.5 = <b>166.7 mL/h</b>)
         </div>
       </div>
       <div class="panel wide">
@@ -221,7 +221,7 @@ volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(100 mL over 30 min = 100 ÷ 0.5 = 
 
 <footer>
   <p><b>For education only.</b> This simulator is modeled on the general workflow of large-volume pumps with dose error reduction software (for example, a PC unit with LVP modules and a Guardrails-style library). It is not a copy of any manufacturer's software and is not affiliated with or endorsed by BD. Alaris and Guardrails are trademarks of their owners.</p>
-  <p>Drug concentrations and limits are teaching values. Always follow your facility's library, policies, and the manufacturer's directions for use. Scenarios use the fictional ATU Simulation Hospital patients; details marked "sim extension" were added for pump practice.</p>
+  <p>Drug concentrations and limits are teaching values. Always follow your facility's library, policies, and the manufacturer's directions for use. Practice patients and orders are made up.</p>
 </footer>
 <!--BODY-END-->
 <script src="js/library.js"></script>
