@@ -99,6 +99,22 @@
               <strong>Dual-line cassette pump</strong>
               <span>Lines A and B through one cassette, keypad on the right</span>
             </button>
+            <button class="pp-card" data-dev="space" aria-label="Compact arrow-key pump: small black display, values dialed in with arrow keys">
+              <svg viewBox="0 0 240 170" aria-hidden="true">
+                <rect x="10" y="52" width="220" height="70" rx="12" class="pp-body"/>
+                <rect x="18" y="62" width="204" height="52" rx="6" fill="#2fb5a3" stroke="#1f8f80"/>
+                <rect x="26" y="72" width="78" height="32" rx="2" fill="#111"/>
+                <rect x="32" y="80" width="40" height="5" fill="#eee"/><rect x="32" y="90" width="60" height="4" fill="#999"/>
+                <circle cx="30" cy="67" r="1.6" fill="#f2c200"/><circle cx="36" cy="67" r="1.6" fill="#3ccf64"/><circle cx="42" cy="67" r="1.6" fill="#3a78d8"/>
+                <g fill="#eef3f2" stroke="#1f8f80"><circle cx="126" cy="74" r="5"/><circle cx="116" cy="88" r="5"/><circle cx="136" cy="88" r="5"/><circle cx="126" cy="102" r="5"/></g>
+                <g stroke="#1f8f80"><circle cx="156" cy="78" r="5" fill="#eef3f2"/><circle cx="172" cy="78" r="5" fill="#f2c200"/><circle cx="188" cy="78" r="5" fill="#eef3f2"/>
+                  <circle cx="156" cy="98" r="5" fill="#eef3f2"/><circle cx="172" cy="98" r="5" fill="#2a6fd6"/><circle cx="188" cy="98" r="5" fill="#d33"/></g>
+                <circle cx="210" cy="88" r="5" fill="#eef3f2" stroke="#1f8f80"/>
+                <rect x="40" y="122" width="20" height="8" rx="2" class="pp-body"/><rect x="180" y="122" width="20" height="8" rx="2" class="pp-body"/>
+              </svg>
+              <strong>Compact arrow-key pump</strong>
+              <span>Small black display, no number keys: values are dialed in with arrows</span>
+            </button>
           </div>
           <p class="pp-note">You can switch pumps any time with <b>Change pump</b>.</p>
         </div>
@@ -143,6 +159,35 @@
               </div>
             </div>
             <div class="module" data-ch="B" id="modB"></div>
+          </div>
+
+          <div class="bb" id="space" hidden>
+            <div class="bb-case">
+              <div class="bb-top"><span class="bb-line"></span><span class="bb-drop"><i class="drop-ico"></i></span><span class="door-state">SET LOADED</span></div>
+              <div class="bb-front">
+                <div class="bb-left">
+                  <div class="bb-leds"><span class="bb-led y" id="bbLedY" title="Pre-alarm / reminder"></span><span class="bb-led g" id="bbLedG" title="Infusing / alarm"></span><span class="bb-led b" id="bbLedB" title="Connection"></span></div>
+                  <div class="bb-screen" id="bbScreen" aria-live="polite"></div>
+                  <div class="bb-name">COMPACT PUMP</div>
+                </div>
+                <div class="bb-cross">
+                  <button class="bbk arrow up" data-bb="UP" aria-label="Up">▲</button>
+                  <button class="bbk arrow left" data-bb="LEFT" aria-label="Left">◀</button>
+                  <button class="bbk arrow right" data-bb="RIGHT" aria-label="Right">▶</button>
+                  <button class="bbk arrow down" data-bb="DOWN" aria-label="Down">▼</button>
+                </div>
+                <div class="bb-keys">
+                  <button class="bbk c" data-bb="C" aria-label="Clear / back">C</button>
+                  <button class="bbk bol" data-bb="BOLUS" aria-label="Bolus">BOL</button>
+                  <button class="bbk pwr" id="bbPower" aria-label="On/Off">⏻</button>
+                  <button class="bbk ok" data-bb="OK">OK</button>
+                  <button class="bbk auto" data-bb="AUTO" aria-label="Auto-programming">⋎</button>
+                  <button class="bbk ss" data-bb="STARTSTOP" aria-label="Start/Stop"><span>Start</span><span>Stop</span></button>
+                </div>
+                <div class="bb-door"><button class="bbk door" data-bb="DOOR" aria-label="Open door">⏏</button></div>
+              </div>
+              <div class="bb-rail"><i></i><i></i></div>
+            </div>
           </div>
 
           <div class="pl" id="plum" hidden>
@@ -374,6 +419,38 @@
         <h3>No dose limits on this pump</h3>
         <p>This model's drug list holds drug <b>names</b> only. It has no soft or hard limits, so it will not stop a wrong dose, a wrong concentration or a wrong weight. You type the concentration yourself, so check it against the bag label and get an independent double check for high-alert drugs.</p>
       </div>
+      <div class="panel only-space">
+        <h3>Parts of the pump</h3>
+        <ul>
+          <li><b>Display</b>: four lines, white on black. The top line shows PRIM or SEC, the drug and <b>START</b> when the program is ready. The highlighted (white) row is the one you are on.</li>
+          <li><b>No number keys.</b> Values are dialed in: <b>◀ ▶</b> move to a digit (the white box), <b>▲ ▼</b> change it, <b>OK</b> confirms. Example: 9.5 = ▲ 9 times on the ones digit, ▶ once, ▲ 5 times.</li>
+          <li><b>◀</b> also selects: it opens the highlighted value or picks a list item, the same as OK.</li>
+          <li><b>C</b> clears a value (press again to leave the editor), or goes back one screen. <b>Start/Stop</b> starts or stops. <b>BOL</b> is bolus.</li>
+          <li>Lights above the display: <b>yellow</b> pre-alarm/reminder, <b>green</b> infusing, <b>red</b> alarm.</li>
+        </ul>
+      </div>
+      <div class="panel only-space">
+        <h3>Programming a primary</h3>
+        <ol>
+          <li>On/Off → Self-test → <i>Press OK to program an infusion</i> → OK.</li>
+          <li>Select the <b>Care Unit</b> (▲▼, OK). Drug list: ▲▼ through the list, <b>▶</b> jumps ABC → DEF → GHI. OK to select, then the concentration that matches the bag.</li>
+          <li>High-alert drugs show an advisory: OK. For per-kg doses the <b>Weight</b> editor opens first.</li>
+          <li>The <b>Doserate</b> (or Rate) editor opens: dial the value, OK. A soft limit asks <i>Override?</i> ▲ Yes / ▼ No. A hard limit stops the editor at the limit and shows a message.</li>
+          <li>▼ to <b>VTBI</b> (required), OK, dial it, OK. Time calculates. <b>START</b> appears on the top line.</li>
+          <li>Check everything against the order, press <b>Start/Stop</b>.</li>
+          <li>Titrate while running: press <b>◀</b>, dial the new doserate, <b>OK</b>. It is not active until you press OK.</li>
+        </ol>
+      </div>
+      <div class="panel only-space">
+        <h3>SECondary (piggyback)</h3>
+        <ol>
+          <li>Hang the secondary at least 8 inches above the primary and connect it to the port above the pump.</li>
+          <li>Press <b>Start/Stop</b> to stop the primary. ▼ to <b>SECondary</b> → OK → <b>New SECondary</b> → OK.</li>
+          <li>Pick the drug and concentration. VTBI fills in with the bag volume: check it, OK, OK.</li>
+          <li>▼ to <b>Time</b>, dial hours:minutes, OK. The rate calculates.</li>
+          <li>Start/Stop → <i>Check bag height, open SECondary clamp</i> → Start/Stop again. The primary resumes on its own when the SEC is done.</li>
+        </ol>
+      </div>
       <div class="panel">
         <h3>Soft limits vs. hard limits</h3>
         <p><b>Soft limit</b>: the dose is unusual for this care area. Stop, re-read the order, recheck your math and the patient's weight. Override only if the order is correct and verified. Overrides are recorded.</p>
@@ -425,7 +502,7 @@ volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(250 mL over 90 min = 250 ÷ 1.5 = 
 </main>
 
 <footer>
-  <p><b>For education only.</b> This simulator is modeled on the general workflow of large-volume pumps with dose error reduction software (for example, a PC unit with LVP modules and a Guardrails-style library). It is not a copy of any manufacturer's software and is not affiliated with or endorsed by BD. The single-channel pump is modeled on the general workflow of color-screen pumps with an onboard drug library and is not affiliated with or endorsed by Baxter. The dual-line cassette pump is modeled on the general workflow of cassette pumps with two inlet lines and is not affiliated with or endorsed by ICU Medical or Hospira. Alaris, Guardrails, Spectrum, Spectrum IQ and Plum A+ are trademarks of their owners.</p>
+  <p><b>For education only.</b> This simulator is modeled on the general workflow of large-volume pumps with dose error reduction software (for example, a PC unit with LVP modules and a Guardrails-style library). It is not a copy of any manufacturer's software and is not affiliated with or endorsed by BD. The single-channel pump is modeled on the general workflow of color-screen pumps with an onboard drug library and is not affiliated with or endorsed by Baxter. The dual-line cassette pump is modeled on the general workflow of cassette pumps with two inlet lines and is not affiliated with or endorsed by ICU Medical or Hospira. The compact arrow-key pump is modeled on the general workflow of compact pumps that enter values with arrow keys and is not affiliated with or endorsed by B. Braun. Alaris, Guardrails, Spectrum, Spectrum IQ, Plum A+ and Infusomat are trademarks of their owners.</p>
   <p>Drug concentrations and limits are teaching values. Always follow your facility's library, policies, and the manufacturer's directions for use. Practice patients and orders are made up.</p>
 </footer>
 <!--BODY-END-->
@@ -433,6 +510,7 @@ volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(250 mL over 90 min = 250 ÷ 1.5 = 
 <script src="js/pump.js"></script>
 <script src="js/spectrum.js"></script>
 <script src="js/plum.js"></script>
+<script src="js/space.js"></script>
 <script src="js/scenarios.js"></script>
 <script src="js/practice.js"></script>
 <script src="js/app.js"></script>

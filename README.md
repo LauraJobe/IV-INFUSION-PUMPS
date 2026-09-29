@@ -2,14 +2,16 @@
 
 A browser-based simulator where nursing students practice programming a large-volume IV pump with a Guardrails-style drug library. The interface and button flow follow the BD Alaris™ System with Guardrails™ Suite MX user manual (PC unit with soft keys, pump modules on each side).
 
-Students first **choose a pump** from three drawings (no logos):
+Students first **choose a pump** from four drawings (no logos):
 
 - **Modular pump**: center screen with a channel module on each side (Alaris-style workflow).
 - **Single-channel pump**: color screen, four round soft keys, ON/OFF · SCAN · OK · RUN/STOP, a keypad that also types letters, and the door on the right (workflow from the Baxter Spectrum IQ operator manual: New Patient → care area → Drug Search by first letters → concentration → CONFIRM → advisory → weight/dose/VTBI → RUN/STOP → Check Flow; secondaries by stopping the pump → program pri/sec → program secndry; dose change from the RUN screen).
 
 - **Dual-line cassette pump**: one cassette with Line A and Line B, a monochrome screen with four soft keys, START / STOP / SELECT ▲▼ (workflow from the Hospira Plum A+ operator manual: Clear Settings? → [A] → Rate / VTBI / Duration with automatic calculation → START; Therapy → Drug List → Dose Calculation → dose units → container units → concentration, weight, dose, VTBI → Confirm Program? Yes; piggyback or concurrent on [B]; titrate with [A] while running). This model has a drug-name list only, **no dose limits**, so hard-limit "hold" orders are not used with it.
 
-Practice mode, free practice, the check-off, grading and the drug library are shared by all three pumps. **Change pump** switches at any time; the choice is remembered on that device.
+- **Compact arrow-key pump**: small black four-line display and **no number keys**. Values are dialed in with ◀ ▶ (pick the digit) and ▲ ▼ (change it), OK confirms (workflow from the B. Braun Infusomat Space Instructions for Use: Press OK to program → Care Unit → drug list with ▶ jumping ABC → DEF → concentration → advisory → weight → doserate editor → VTBI → START on the top line → Start/Stop; soft limit "Override?" Yes ▲ / No ▼; the editor stops at a hard limit and shows a message; SECondary from the stopped home screen with a bag-height reminder; titrate with ◀ then OK).
+
+Practice mode, free practice, the check-off, grading and the drug library are shared by all four pumps. **Change pump** switches at any time; the choice is remembered on that device.
 
 **Open `index.html` in any browser.** No install, no internet needed except for fonts. It also works on GitHub Pages.
 
@@ -35,7 +37,7 @@ A **Bedside** panel covers the hands-on steps: spike and prime, load the set, tr
 `<iframe src="https://laurajobe.github.io/IV-INFUSION-PUMPS/" width="100%" height="1200" style="border:0" allow="autoplay" title="IV Pump Practice Lab"></iframe>`.
 If your institution blocks embedded sites, add it as a Link instead.
 
-**SCORM packages (grades):** there is one package per pump, so a graded check-off uses only that pump (no picker, no Change pump button). Run `python3 tools/build_scorm.py IV-Pump-Check-off-Modular-SCORM.zip --device mod`, `python3 tools/build_scorm.py IV-Pump-Check-off-Single-Channel-SCORM.zip --device sq` and/or `python3 tools/build_scorm.py IV-Pump-Check-off-Dual-Line-SCORM.zip --device plum`, then upload each zip as its own SCORM package. It opens as a check-off: 5 random orders from the practice order library (one from each specialty plus one more, no drug repeated), one attempt each. The score sent to the Grade Center is the percent programmed correctly (for example 4 of 5 = 80%). There is no pass/fail or mastery score. The check-off is not offered on the public website.
+**SCORM packages (grades):** there is one package per pump, so a graded check-off uses only that pump (no picker, no Change pump button). Run `python3 tools/build_scorm.py IV-Pump-Check-off-Modular-SCORM.zip --device mod`, `python3 tools/build_scorm.py IV-Pump-Check-off-Single-Channel-SCORM.zip --device sq`, `python3 tools/build_scorm.py IV-Pump-Check-off-Dual-Line-SCORM.zip --device plum` and/or `python3 tools/build_scorm.py IV-Pump-Check-off-Compact-SCORM.zip --device space`, then upload each zip as its own SCORM package. It opens as a check-off: 5 random orders from the practice order library (one from each specialty plus one more, no drug repeated), one attempt each. The score sent to the Grade Center is the percent programmed correctly (for example 4 of 5 = 80%). There is no pass/fail or mastery score. The check-off is not offered on the public website.
 
 ## Files
 
@@ -45,6 +47,7 @@ If your institution blocks embedded sites, add it as a Link instead.
 - `js/pump.js`: modular pump engine (screens, keys, Guardrails checks, alarms, secondary, titration)
 - `js/spectrum.js`: single-channel pump engine (same log events, so practice grading is shared)
 - `js/plum.js`: dual-line cassette pump engine
+- `js/space.js`: compact arrow-key pump engine
 - `js/scenarios.js`: the modes in the dropdown (practice mode and free practice)
 - `js/practice.js`: random order generator and grading for practice mode
 - `js/app.js`: rendering and controls

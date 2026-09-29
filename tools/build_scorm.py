@@ -9,6 +9,7 @@ Each package is locked to one pump so a graded check-off is pump-specific:
 Usage: python3 tools/build_scorm.py OUT.zip --device mod   (modular pump)
        python3 tools/build_scorm.py OUT.zip --device sq    (single-channel pump)
        python3 tools/build_scorm.py OUT.zip --device plum  (dual-line cassette pump)
+       python3 tools/build_scorm.py OUT.zip --device space (compact arrow-key pump)
 """
 import sys
 import zipfile
@@ -17,9 +18,9 @@ from pathlib import Path
 root = Path(__file__).resolve().parent.parent
 out = Path(sys.argv[1])
 device = sys.argv[sys.argv.index("--device") + 1] if "--device" in sys.argv else None
-if device not in ("mod", "sq", "plum"):
-    sys.exit("choose a pump: --device mod, --device sq or --device plum")
-pump_name = {"mod": "Modular pump", "sq": "Single-channel pump", "plum": "Dual-line cassette pump"}[device]
+if device not in ("mod", "sq", "plum", "space"):
+    sys.exit("choose a pump: --device mod, sq, plum or space")
+pump_name = {"mod": "Modular pump", "sq": "Single-channel pump", "plum": "Dual-line cassette pump", "space": "Compact arrow-key pump"}[device]
 js_files = sorted(str(p.relative_to(root)) for p in (root / "js").glob("*.js"))
 icon_files = sorted(str(p.relative_to(root)) for p in (root / "icons").glob("*.png"))
 files = ["index.html", "manifest.webmanifest", "css/pump.css", "js/config.js"] + js_files + icon_files

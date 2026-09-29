@@ -425,5 +425,24 @@ const PRACTICE = (() => {
     return ["Press the <b>[A]</b> soft key (Rate is highlighted)", `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b>`, startIt];
   }
 
-  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps };
+  // Steps for the compact arrow-key pump (space.js).
+  const dial = (v) => `dial <b>${fmtNum(v, 3)}</b> (◀ ▶ digit, ▲ ▼ value) → OK`;
+  const spHm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+  function spaceSteps(o) {
+    const d = o.drug, c = o.conc;
+    const find = `▲▼ to <b>${d.name}</b> (▶ jumps ABC → DEF …) → OK${d.concs.length > 1 ? ` → <b>${concLabel(d, c)}</b> → OK` : ""}${d.highAlert ? " → advisory: OK" : ""}`;
+    if (o.kind === "titrate") return ["On the run screen press <b>◀</b> (Doserate editor opens)", `${dial(o.dose)}. The new doserate starts when you press OK (rate ${fmtNum(o.rate, 1)} ml/h)`];
+    if (o.kind === "secondary") return ["<b>Start/Stop</b> to stop the primary → ▼ to <b>SECondary</b> → OK → <b>New SECondary</b> → OK", find,
+      `VTBI shows ${fmtNum(o.vtbi)} ml (the bag): OK → OK`, `▼ to <b>Time</b> → OK → dial <b>${spHm(o.minutes)}</b> → OK (rate ${fmtNum(o.rate, 1)} ml/h)`, "<b>Start/Stop</b> → check bag height, open SEC clamp → <b>Start/Stop</b>"];
+    if (o.kind === "hold") return ["OK → " + find, `${o.perKg ? `Weight: ${dial(o.patient.weight)}, then ` : ""}dial toward ${fmtNum(o.dose, 3)}: the editor stops at the hard limit and ▲ again shows the hard-limit message`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
+    const steps = ["Press <b>OK</b> (care unit is already set) → " + find];
+    if (d.dose && o.dose != null) {
+      if (o.perKg) steps.push(`Weight editor: ${dial(o.patient.weight)}`, "OK to open Doserate");
+      steps.push(`Doserate: ${dial(o.dose)} (rate ${fmtNum(o.rate, 1)} ml/h)`);
+    } else steps.push(`Rate: ${dial(o.rate)}`);
+    steps.push(`VTBI is highlighted: OK → ${dial(o.vtbi)}`, "<b>START</b> shows on the top line: check it, press <b>Start/Stop</b>");
+    return steps;
+  }
+
+  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps };
 })();

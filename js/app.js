@@ -11,9 +11,9 @@
   // Which pump the student practices on: "mod" (modular, pump.js) or "sq" (single channel, spectrum.js).
   const CFG0 = window.IVP_CONFIG || {};
   let DEV = CFG0.device || store.get("ivp-dev") || null;
-  if (!["mod", "sq", "plum"].includes(DEV)) DEV = null;
-  const ENGINES = { mod: Pump, sq: Spectrum, plum: Plum };
-  const DEVICE_EL = { mod: "#pump", sq: "#sq", plum: "#plum" };
+  if (!["mod", "sq", "plum", "space"].includes(DEV)) DEV = null;
+  const ENGINES = { mod: Pump, sq: Spectrum, plum: Plum, space: Space };
+  const DEVICE_EL = { mod: "#pump", sq: "#sq", plum: "#plum", space: "#space" };
   let P = ENGINES[DEV] || Pump;
 
   let speed = 1;
@@ -55,6 +55,12 @@
     if (DEV === "sq") {
       if (/^[0-9.]$/.test(e.key)) { keyTone(); Spectrum.key(e.key); }
       else if (e.key === "Enter" && !/BUTTON/.test(document.activeElement.tagName)) { keyTone(); Spectrum.key("OK"); }
+      return;
+    }
+    if (DEV === "space") {
+      const map = { ArrowUp: "UP", ArrowDown: "DOWN", ArrowLeft: "LEFT", ArrowRight: "RIGHT", Backspace: "C", Escape: "C" };
+      if (map[e.key]) { e.preventDefault(); keyTone(); Space.key(map[e.key]); }
+      else if (e.key === "Enter" && !/BUTTON/.test(document.activeElement.tagName)) { keyTone(); Space.key("OK"); }
       return;
     }
     if (DEV === "plum") {
@@ -121,6 +127,16 @@
     if (l) { keyTone(); Plum.softKey("B", +l.dataset.i); }
   });
 
+  // Compact arrow-key pump keys
+  $$("[data-bb]").forEach((b) => b.addEventListener("click", () => { keyTone(); Space.key(b.dataset.bb); }));
+  $("#bbPower").addEventListener("click", () => {
+    audioUnlock();
+    const was = Space.state.on;
+    if (was) keyTone();
+    Space.power();
+    if (!was && Space.state.screen.id === "boot") spacePowerTone();
+  });
+
   // ------------------------------------------------------------ pump picker
   function setDevice(dev, keepMode) {
     DEV = dev;
@@ -129,12 +145,14 @@
     if (next !== P) { P.reset(); P = next; }
     document.body.classList.toggle("dev-sq", dev === "sq");
     document.body.classList.toggle("dev-plum", dev === "plum");
+    document.body.classList.toggle("dev-space", dev === "space");
     document.body.classList.toggle("dev-mod", dev === "mod");
     document.body.classList.remove("picking");
     $("#pumpPicker").hidden = true;
     $("#pump").hidden = dev !== "mod";
     $("#sq").hidden = dev !== "sq";
     $("#plum").hidden = dev !== "plum";
+    $("#space").hidden = dev !== "space";
     $(".pump-wrap").hidden = false;
     $("#changePump").hidden = !!CFG0.device;
     if (keepMode !== false && scn) loadScenario(sel.value);
@@ -215,11 +233,14 @@
     if (!P.state.on) return;
     if (DEV === "sq") tone(1000, 0.09, 0, 0.07, 0.12);
     else if (DEV === "plum") tone(2000, 0.06, 0, 0.06, 0.1);
+    else if (DEV === "space") tone(1600, 0.04, 0, 0.05, 0.1);
     else tone(1200, 0.1, 0, 0.07, 0.16);
     buzz(20);
   }
   // Single-channel pump power on: a short rising two-note chime.
   // Cassette pump: one beep at power on (the manual says to listen for it).
+  // Compact pump power on: the manual says two tones sound during the self test.
+  function spacePowerTone() { tone(1500, 0.15, 0, 0.06); tone(2000, 0.15, 0.25, 0.06); buzz([80, 80, 80]); }
   function plumPowerTone() { tone(2000, 0.25, 0, 0.06); buzz([120]); }
   function sqPowerTone() { tone(1000, 0.12, 0, 0.06); tone(1500, 0.18, 0.15, 0.06); buzz([60, 60, 120]); }
   // A channel is "selected but not started" from CHANNEL SELECT until START:
@@ -238,6 +259,7 @@
     if (!S.on || Date.now() < S.silencedUntil) return;
     if (DEV === "sq") return sqAlarmAudio(S);
     if (DEV === "plum") return plumAlarmAudio(S);
+    if (DEV === "space") return spaceAlarmAudio(S);
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
     if (!alarms.length) {
       // Steady single reminder beep until the program is started.
@@ -298,6 +320,61 @@
     lastBeep = now < next + 260 ? next : now;
     [0, 0.25, 0.5].forEach((t) => tone(1400, 0.15, lead + t, 0.08, 0.08));
     buzz([150, 100, 150, 100, 150], lead * 1000);
+  }
+
+  // Compact pump (no recording yet): operating alarm = two-tone 1.2/0.9 kHz
+  // pattern every 2.5 s; programming not started = one short beep every 1.5 s.
+  function spaceAlarmAudio(S) {
+    const a = S.channels.A.alarm;
+    const now = Date.now();
+    if (!a) {
+      if (Space.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(1600, 0.12, 0, 0.05, 0.08); }
+      return;
+    }
+    const gap = a.level === "high" ? 2500 : 5000;
+    const next = lastBeep + gap;
+    if (now < next - 260) return;
+    const lead = now < next ? (next - now) / 1000 : 0;
+    lastBeep = now < next + 260 ? next : now;
+    if (a.level === "high") { tone(1200, 0.2, lead, 0.08, 0.08); tone(900, 0.2, lead + 0.25, 0.08, 0.08); tone(1200, 0.2, lead + 0.5, 0.08, 0.08); buzz([200, 50, 200, 50, 200], lead * 1000); }
+    else { tone(1200, 0.2, lead, 0.06, 0.08); buzz(200, lead * 1000); }
+  }
+
+  // ------------------------------------------------------------ render compact pump
+  function renderSpace(S) {
+    const scr = $("#bbScreen");
+    const spec = Space.render();
+    const c = S.channels.A;
+    const running = S.on && (c.state === "running" || c.state === "kvo");
+    $("#bbPower").classList.toggle("pulse", !S.on);
+    $("#bbLedY").classList.toggle("on", S.on && (Space.pending() || (c.alarm && c.alarm.level !== "high")));
+    const g = $("#bbLedG");
+    g.classList.toggle("on", running && !(c.alarm && c.alarm.level === "high"));
+    g.classList.toggle("red", S.on && !!c.alarm && c.alarm.level === "high");
+    $("#bbLedB").classList.toggle("on", S.on && S.screen.id === "boot");
+    const dev = $("#space");
+    dev.classList.toggle("dripping", running);
+    dev.style.setProperty("--drip", `${Math.max(0.25, Math.min(3, 60 / Math.max(1, Space.currentRate(c))))}s`);
+    scr.className = "bb-screen" + (!S.on || spec.off ? " off" : "");
+    if (!S.on || spec.off) { setHTML(scr, ""); return; }
+    if (spec.boot) { setHTML(scr, `<div class="bbs-landing"><span>Self-test active</span><span style="font-size:11px">Version 1.0 · practice</span></div>`); return; }
+    const tags = (spec.tags || []).map((t) => `<span class="bbs-tag">${t}</span>`).join("");
+    let html = "";
+    const alarmLine = spec.alarm ? `<div class="bbs-alarm">Alarm: ${spec.alarm.msg}${Date.now() < S.silencedUntil ? "" : " · OK"}</div>` : "";
+    if (spec.landing) html = `<div class="bbs-landing"><b>LVP</b><span>Press <span class="bbs-tag">OK</span> to program an infusion</span></div>`;
+    else if (spec.box) html = `<div class="bbs-box">${spec.box}<br><span class="bbs-tag">${spec.boxTag}</span></div>`;
+    else if (spec.editor) {
+      html = `<div class="bbs-top">${tags}</div><div class="bbs-mid"><span class="bbs-big">${spec.label}</span><span class="bbs-digits">${spec.cells.map((x) => `<i class="${x.on ? "on" : ""}">${x.ch}</i>`).join("")}</span></div><div class="bbs-foot"><span>${spec.foot}</span><span>${spec.unit}</span></div>`;
+    } else if (spec.run) {
+      html = `${alarmLine || `<div class="bbs-top">${tags}<span class="bbs-run${spec.running ? " go" : ""}">${spec.running ? (spec.kvo ? "KVO" : "◀◀◀") : "STOP"}</span></div>`}<div class="bbs-mid"><span class="bbs-big name">${spec.limit ? `<small style="font-size:14px">${spec.limit}</small>` : ""}${spec.drug}</span><span class="bbs-big val">${spec.big} ◀</span></div><div class="bbs-foot"><span>${spec.info}</span><span>${spec.unit}</span></div>`;
+    } else {
+      const head = spec.home ? `<div class="bbs-top">${spec.home ? "⌂ " : ""}${tags}<span class="drug">${spec.drug || ""}</span>${spec.start ? `<span class="bbs-tag start">START</span>` : ""}</div>`
+        : spec.head ? `<div class="bbs-top"><span class="drug">${spec.head}</span>${tags}</div>` : "";
+      const lines = (spec.lines || []).map((l) => `<div class="bbs-line${l.sel ? " sel" : ""}${l.header ? " hdr" : ""}"><span class="txt">${l.header ? "" : ""}${l.text}</span>${l.right ? `<span class="rt">${l.right}</span>` : ""}${l.arrow ? `<span class="arr">◀</span>` : ""}</div>`).join("");
+      html = (spec.alarm && spec.home ? alarmLine : head) + lines;
+    }
+    if (S.flash) html += `<div class="bbs-flash">${S.flash.text}</div>`;
+    setHTML(scr, html);
   }
 
   // ------------------------------------------------------------ render cassette pump
@@ -628,7 +705,7 @@
         <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
         <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
         <dt>Unit</dt><dd>${p.unit} <span class="src">(profile already selected)</span></dd></dl>`);
-    setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" ? o.text.replace(/ on Channel A/g, " on the pump") : DEV === "plum" ? o.text.replace(/ on Channel A/g, " on Line A").replace(/The secondary bag is hung above the primary with its clamp open\./, "The secondary container is attached to the Line B inlet.") : o.text}</p>`);
+    setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" || DEV === "space" ? o.text.replace(/ on Channel A/g, " on the pump") : DEV === "plum" ? o.text.replace(/ on Channel A/g, " on Line A").replace(/The secondary bag is hung above the primary with its clamp open\./, "The secondary container is attached to the Line B inlet.") : o.text}</p>`);
     setHTML($("#vitals"), "");
     setHTML($("#decisions"), "");
     setHTML($("#debrief"), "");
@@ -646,7 +723,11 @@
           ? `<button class="btn-main" data-pr="next">${quiz.results.length < quiz.count ? `Next order (${quiz.results.length + 1} of ${quiz.count})` : "See my results"}</button>`
           : `<button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}`}</div>`;
     } else {
-      const help = DEV === "plum"
+      const help = DEV === "space"
+        ? (o.kind === "titrate" ? "The drip is running. Press <b>◀</b>, dial the new doserate, press <b>OK</b>. Your work is checked when you confirm it."
+          : o.kind === "secondary" ? "The primary is running. <b>Start/Stop</b> to stop it, ▼ to <b>SECondary</b> → New SECondary. Your work is checked when the SEC starts."
+          : "No number keys: <b>◀ ▶</b> pick the digit, <b>▲ ▼</b> change it, <b>OK</b> confirms. Press <b>OK</b> to begin. Your work is checked when you press <b>Start/Stop</b>.")
+        : DEV === "plum"
         ? (o.kind === "titrate" ? "The drip is running on Line A. Press <b>[A]</b>, type the new Dose, then <b>START</b>. Your work is checked when you press START."
           : o.kind === "secondary" ? "Line A is running. Press <b>[B]</b> and program a <b>Piggyback</b>. Your work is checked when you press <b>START</b>."
           : "This pump has <b>no dose limits</b>: check your numbers. Press <b>[A]</b> and program the order. Your work is checked when the line starts.")
@@ -655,7 +736,7 @@
           : o.kind === "secondary" ? "The primary is running. Stop it with <b>RUN/STOP</b>, then <b>program pri/sec</b> → <b>program secndry</b>. Your work is checked when the secondary starts."
           : "The pump is on the Drug Search screen. Program the order. Your work is checked when the infusion starts (<b>RUN/STOP</b> → Check Flow <b>yes</b>).")
         : `Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.`;
-      const steps = DEV === "sq" ? PRACTICE.sqSteps(o) : DEV === "plum" ? PRACTICE.plumSteps(o) : o.steps;
+      const steps = DEV === "sq" ? PRACTICE.sqSteps(o) : DEV === "plum" ? PRACTICE.plumSteps(o) : DEV === "space" ? PRACTICE.spaceSteps(o) : o.steps;
       body = `<p class="pr-help">${help}</p>
         <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
         ${X.showAnswer ? `<div class="pr-answer"><ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
@@ -814,6 +895,7 @@
     const S = P.state;
     if (DEV === "sq") renderSq(S);
     else if (DEV === "plum") renderPlum(S);
+    else if (DEV === "space") renderSpace(S);
     else { renderLCD(S); renderModules(S); }
     if (!scn || !(scn.practice || scn.noBedside)) renderBedside(S);
     if (scn) renderCoach(S);
@@ -828,7 +910,7 @@
     renderAll();
   }, 250);
   // Instant feedback for key presses (don't wait for the next tick)
-  [Pump, Spectrum, Plum].forEach((eng) => eng.onChange(() => { if (eng === P) requestAnimationFrame(renderAll); }));
+  [Pump, Spectrum, Plum, Space].forEach((eng) => eng.onChange(() => { if (eng === P) requestAnimationFrame(renderAll); }));
 
   // Read-only hook for automated tests.
   window.ivpPractice = { get order() { return X && X.order; }, get result() { return X && X.result; } };
