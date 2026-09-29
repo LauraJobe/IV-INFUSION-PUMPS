@@ -24,16 +24,16 @@
   showTab(["practice", "library", "basics"].includes(hashTab) ? hashTab : store.get("ivp-tab") || "practice");
 
   // ------------------------------------------------------------ pump keys
-  $$(".sk").forEach((b) => b.addEventListener("click", () => { audioUnlock(); Pump.softKey(b.dataset.side, +b.dataset.i); }));
-  $$(".key[data-key]").forEach((b) => b.addEventListener("click", () => { audioUnlock(); Pump.key(b.dataset.key); }));
+  $$(".sk").forEach((b) => b.addEventListener("click", () => { keyTone(); Pump.softKey(b.dataset.side, +b.dataset.i); }));
+  $$(".key[data-key]").forEach((b) => b.addEventListener("click", () => { keyTone(); Pump.key(b.dataset.key); }));
   $("#powerKey").addEventListener("click", () => {
     audioUnlock();
     Pump.systemOn();
-    if (Pump.state.screen.id === "boot" && soundBox.checked) { beep(523, 0.14, 0.3); beep(659, 0.14, 0.5); beep(784, 0.22, 0.7); }
+    if (Pump.state.screen.id === "boot") powerOnTone();
   });
   $("#lcd").addEventListener("click", (e) => {
     const l = e.target.closest("[data-side]");
-    if (l) Pump.softKey(l.dataset.side, +l.dataset.i);
+    if (l) { keyTone(); Pump.softKey(l.dataset.side, +l.dataset.i); }
   });
   document.addEventListener("keydown", (e) => {
     if ($("#view-practice").hidden || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
@@ -62,7 +62,7 @@
         </svg>
         <div class="door-state"></div>
       </div>`;
-    $$("[data-mk]", m).forEach((b) => b.addEventListener("click", () => { audioUnlock(); Pump.moduleKey(id, b.dataset.mk); }));
+    $$("[data-mk]", m).forEach((b) => b.addEventListener("click", () => { keyTone(); Pump.moduleKey(id, b.dataset.mk); }));
   });
 
   // ------------------------------------------------------------ speed
@@ -77,14 +77,32 @@
     if (actx) return;
     try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; }
   }
-  function beep(freq, dur, when = 0) {
-    if (!actx) return;
-    const o = actx.createOscillator(), g = actx.createGain();
-    o.type = "square"; o.frequency.value = freq;
-    g.gain.value = 0.04;
-    o.connect(g); g.connect(actx.destination);
+  // Pump tones are near-pure sine beeps. Pitches and lengths were measured
+  // from a recording of the real pump; the sound itself is synthesized here.
+  function tone(freq, dur, when = 0, gain = 0.08, third = 0) {
+    if (!actx || !soundBox.checked) return;
     const t = actx.currentTime + when;
-    o.start(t); o.stop(t + dur);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.004);
+    g.gain.setValueAtTime(gain, t + dur - 0.015);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    g.connect(actx.destination);
+    [[freq, 1], [freq * 3, third]].forEach(([f, level]) => {
+      if (!level) return;
+      const o = actx.createOscillator(), lg = actx.createGain();
+      o.type = "sine"; o.frequency.value = f; lg.gain.value = level;
+      o.connect(lg); lg.connect(g);
+      o.start(t); o.stop(t + dur + 0.01);
+    });
+  }
+  const beep = (freq, dur, when = 0) => tone(freq, dur, when, 0.08);
+  // SYSTEM ON: two short high beeps, then a lower longer tone.
+  function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); }
+  // Every key press on a powered-on pump: one 1.2 kHz beep, about 0.1 s.
+  function keyTone() {
+    audioUnlock();
+    if (Pump.state.on) tone(1200, 0.1, 0, 0.07, 0.16);
   }
   const soundBox = $("#soundToggle");
   soundBox.checked = store.get("ivp-sound") !== "off";
@@ -167,7 +185,7 @@
         const p = ch.onSecondary && ch.secondary ? ch.secondary : ch.primary;
         const rate = Pump.currentRate(ch);
         const name = p.mode === "basic" ? "BASIC INFUSION" : p.drug.name.toUpperCase();
-        const flag = p.overrides && p.overrides.length ? (p.overrides.some((o) => o.dir === "max") ? " \u2191\u2191\u2191" : " LLL") : "";
+        const flag = p.overrides && p.overrides.length ? (p.overrides.some((o) => o.dir === "max") ? " ↑↑↑" : " LLL") : "";
         const dose = Pump.hasDose(p) ? ` ${fmtNum(p.dose, 2)} ${Pump.doseUnit(p)}` : "";
         const scroll = `<span class="scroll">${ch.onSecondary ? "SECONDARY " : ""}${name}${dose}${flag}</span>`;
         if (ch.alarm && ch.alarm.level === "high") { cls += " red"; html = ch.alarm.msg; }
