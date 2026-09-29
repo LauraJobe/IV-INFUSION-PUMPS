@@ -96,7 +96,6 @@
       o.start(t); o.stop(t + dur + 0.01);
     });
   }
-  const beep = (freq, dur, when = 0) => tone(freq, dur, when, 0.08);
   // SYSTEM ON: two short high beeps, then a lower longer tone.
   function powerOnTone() { tone(3480, 0.08, 0, 0.06); tone(3480, 0.08, 0.12, 0.06); tone(3000, 0.15, 0.24, 0.06); }
   // Every key press on a powered-on pump: one 1.2 kHz beep, about 0.1 s.
@@ -113,10 +112,18 @@
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
     if (!alarms.length) return;
     const high = alarms.some((a) => a.level === "high");
-    const gap = high ? 1500 : 5000;
-    if (Date.now() - lastBeep < gap) return;
-    lastBeep = Date.now();
-    if (high) { beep(880, 0.12); beep(880, 0.12, 0.2); beep(660, 0.18, 0.4); } else beep(660, 0.15);
+    // High priority (occlusion, air in line, infusion complete): two 0.5 s
+    // beeps at 2.2 kHz, 0.12 s apart, repeating every ~2 s (measured from the
+    // pump's occlusion alarm). Low priority: one short 2.2 kHz beep every 5 s.
+    const gap = high ? 2040 : 5000;
+    // Schedule on the audio clock so the repeat stays on its cadence even
+    // though this check runs every 250 ms.
+    const now = Date.now();
+    const next = lastBeep + gap;
+    if (now < next - 260) return;
+    const lead = now < next ? (next - now) / 1000 : 0;
+    lastBeep = now < next + 260 ? next : now;
+    if (high) { tone(2200, 0.51, lead, 0.08, 0.07); tone(2200, 0.51, lead + 0.63, 0.08, 0.07); } else tone(2200, 0.25, lead, 0.06, 0.07);
   }
 
   // ------------------------------------------------------------ render pump
