@@ -12,7 +12,7 @@
 
 // Converts an amount unit to a common base so dose and concentration
 // units can differ (e.g. dose in mcg, bag in mg).
-const UNIT_FACTORS = { g: 1000, mg: 1, mcg: 0.001, units: 1, milliunits: 0.001, mEq: 1 };
+const UNIT_FACTORS = { g: 1000, mg: 1, mcg: 0.001, ng: 0.000001, units: 1, milliunits: 0.001, mEq: 1 };
 
 const DRUGS = {
   // ---------- Fluids (rate-based, mL/h) ----------

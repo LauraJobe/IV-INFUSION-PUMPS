@@ -81,6 +81,24 @@
               <strong>Single-channel pump</strong>
               <span>Color screen and keypad, door on the right</span>
             </button>
+            <button class="pp-card" data-dev="plum" aria-label="Dual-line cassette pump: lines A and B through one cassette on the left, screen and keypad on the right">
+              <svg viewBox="0 0 240 170" aria-hidden="true">
+                <rect x="30" y="30" width="180" height="130" rx="10" class="pp-body"/>
+                <rect x="38" y="38" width="62" height="114" rx="6" class="pp-door"/>
+                <rect x="60" y="8" width="12" height="40" rx="4" class="pp-lcd"/><path d="M66 48 V70" stroke="#8f9a98" stroke-width="3"/>
+                <rect x="52" y="70" width="30" height="46" rx="4" fill="#f5f7f7" stroke="#8f9a98"/>
+                <rect x="112" y="40" width="88" height="54" rx="3" class="pp-lcd"/>
+                <text x="118" y="52" class="pp-t" style="font-size:10px;text-anchor:start">A</text><text x="194" y="52" class="pp-t" style="font-size:10px;text-anchor:end">B</text>
+                <g class="pp-key"><rect x="114" y="98" width="18" height="6" rx="1"/><rect x="136" y="98" width="18" height="6" rx="1"/><rect x="158" y="98" width="18" height="6" rx="1"/><rect x="180" y="98" width="18" height="6" rx="1"/></g>
+                <g class="pp-key"><rect x="132" y="110" width="14" height="10" rx="5"/><rect x="150" y="110" width="14" height="10" rx="5"/><rect x="168" y="110" width="14" height="10" rx="5"/>
+                  <rect x="132" y="124" width="14" height="10" rx="5"/><rect x="150" y="124" width="14" height="10" rx="5"/><rect x="168" y="124" width="14" height="10" rx="5"/>
+                  <rect x="132" y="138" width="14" height="10" rx="5"/><rect x="150" y="138" width="14" height="10" rx="5"/><rect x="168" y="138" width="14" height="10" rx="5"/></g>
+                <rect x="112" y="110" width="16" height="10" rx="3" fill="#3f9a4d"/><rect x="112" y="124" width="16" height="10" rx="3" fill="#c44"/><rect x="112" y="138" width="16" height="10" rx="3" fill="#56656f"/>
+                <rect x="187" y="110" width="12" height="24" rx="6" fill="#56656f"/>
+              </svg>
+              <strong>Dual-line cassette pump</strong>
+              <span>Lines A and B through one cassette, keypad on the right</span>
+            </button>
           </div>
           <p class="pp-note">You can switch pumps any time with <b>Change pump</b>.</p>
         </div>
@@ -125,6 +143,46 @@
               </div>
             </div>
             <div class="module" data-ch="B" id="modB"></div>
+          </div>
+
+          <div class="pl" id="plum" hidden>
+            <div class="pl-case">
+              <div class="pl-left">
+                <svg viewBox="0 0 120 300" aria-hidden="true">
+                  <rect x="50" y="0" width="20" height="70" rx="6" fill="#f4f7f8" stroke="#8d9795"/>
+                  <rect x="54" y="30" width="12" height="36" rx="3" class="pl-fluid"/>
+                  <rect x="57" y="70" width="6" height="40" fill="#f2f6f5" stroke="#8d9795" class="tube"/>
+                  <g class="drops"><circle class="drop" cx="60" cy="20" r="3.5"></circle></g>
+                  <rect x="28" y="108" width="64" height="120" rx="8" fill="#eef1f1" stroke="#8d9795" stroke-width="1.5"/>
+                  <rect x="44" y="128" width="32" height="56" rx="5" fill="#d8dfde" stroke="#8d9795"/>
+                  <circle cx="60" cy="204" r="9" fill="#cfd6d5" stroke="#8d9795"/>
+                  <rect x="57" y="228" width="6" height="72" fill="#f2f6f5" stroke="#8d9795" class="tube"/>
+                  <path d="M16 96 h88 v10 h-88z" fill="#c9cfce" stroke="#8d9795"/>
+                </svg>
+                <div class="door-state">SET LOADED</div>
+              </div>
+              <div class="pl-right">
+                <div class="pl-flow"><span class="pl-drop" id="plDropA"><i></i>A</span><span class="pl-drop" id="plDropB">B<i></i></span></div>
+                <div class="pl-screen" id="plScreen" aria-live="polite"></div>
+                <div class="pl-softkeys">
+                  <button class="plk" data-i="0" aria-label="Soft key 1">▲</button><button class="plk" data-i="1" aria-label="Soft key 2">▲</button>
+                  <button class="plk" data-i="2" aria-label="Soft key 3">▲</button><button class="plk" data-i="3" aria-label="Soft key 4">▲</button>
+                </div>
+                <div class="pl-keys">
+                  <button class="plb start" data-pl="START" style="grid-area:1/1">START</button>
+                  <button class="plb stop" data-pl="STOP" style="grid-area:2/1">STOP</button>
+                  <span class="pl-charge" style="grid-area:3/1"><span class="led" id="plLed"></span></span>
+                  <button class="plb onoff" id="plPower" style="grid-area:4/1">ON/OFF</button>
+                  <button class="pln" data-pl="1" style="grid-area:1/2">1</button><button class="pln" data-pl="2" style="grid-area:1/3">2</button><button class="pln" data-pl="3" style="grid-area:1/4">3</button>
+                  <button class="pln" data-pl="4" style="grid-area:2/2">4</button><button class="pln" data-pl="5" style="grid-area:2/3">5</button><button class="pln" data-pl="6" style="grid-area:2/4">6</button>
+                  <button class="pln" data-pl="7" style="grid-area:3/2">7</button><button class="pln" data-pl="8" style="grid-area:3/3">8</button><button class="pln" data-pl="9" style="grid-area:3/4">9</button>
+                  <button class="pln clear" data-pl="CLEAR" style="grid-area:4/2">CLEAR</button><button class="pln" data-pl="0" style="grid-area:4/3">0</button><button class="pln" data-pl="." style="grid-area:4/4">•</button>
+                  <div class="pl-select" style="grid-area:1/5/4/6"><button class="plb sel" data-pl="UP" aria-label="Select up">▲</button><span>SELECT</span><button class="plb sel" data-pl="DOWN" aria-label="Select down">▼</button></div>
+                  <button class="plb silence" data-pl="SILENCE" style="grid-area:4/5">SILENCE</button>
+                </div>
+                <div class="pl-name">CASSETTE PUMP · 2 LINES</div>
+              </div>
+            </div>
           </div>
 
           <div class="sq" id="sq" hidden>
@@ -194,6 +252,7 @@
   <!-- ================= DRUG LIBRARY ================= -->
   <section class="view" id="view-library" role="tabpanel" aria-labelledby="tab-library" hidden>
     <p class="intro">This practice library works like a hospital's Guardrails library. Each care-area profile has its own list and its own limits. A <b>soft limit</b> asks you to confirm, and you override only after checking the order. A <b>hard limit</b> cannot be overridden. Values are teaching examples. Your facility's pharmacy builds the real library.</p>
+    <p class="intro only-plum"><b>Dual-line cassette pump:</b> this pump's drug list has names only, with no limits. The table below is still the teaching reference for concentrations and safe dose ranges. The pump will not warn you if you go outside them.</p>
     <div class="lib-controls">
       <label for="libProfile">Profile</label>
       <select id="libProfile"></select>
@@ -279,6 +338,42 @@
           <li>RUN/STOP → Secondary Check Flow: drops falling in the <b>secondary</b> chamber and not the primary → yes. The primary resumes by itself when the secondary is done.</li>
         </ol>
       </div>
+      <div class="panel only-plum">
+        <h3>Parts of the pump</h3>
+        <ul>
+          <li><b>Cassette</b> (left): one cassette with two inlets. <b>Line A</b> is the primary inlet, <b>Line B</b> the secondary inlet. One line goes to the patient.</li>
+          <li><b>Screen</b>: the main delivery screen shows A on the left and B on the right (status, rate, volume infused). The drop symbols above the screen flash while a line is pumping.</li>
+          <li><b>Four soft keys</b> (▲) under the screen: their job is printed just above them (for example <i>A</i>, <i>B</i>, <i>Therapy</i>, <i>Cancel/Back</i>).</li>
+          <li><b>SELECT ▲▼</b> moves the highlight between fields and list items. Typing replaces the highlighted value. <b>CLEAR</b> empties the field.</li>
+          <li><b>START</b> starts or accepts a change, <b>STOP</b> stops a line, <b>SILENCE</b> quiets an alarm.</li>
+        </ul>
+      </div>
+      <div class="panel only-plum">
+        <h3>Programming a line</h3>
+        <ol>
+          <li>ON/OFF → self test. <b>Clear Settings? Yes</b> for a new patient.</li>
+          <li><b>Rate-based</b> (fluids, IVPB): press <b>[A]</b> → type the Rate → ▼ → type the VTBI. Duration calculates. Press <b>START</b>.</li>
+          <li><b>Dose-based drips</b>: <b>[A]</b> → <b>Therapy</b> → Drug List (Page Down, ▲▼) → Enter → <b>Dose Calculation</b> → Choose → dose units → Choose → container units → Choose.</li>
+          <li>Type the <b>drug amount</b> and <b>bag volume</b> from the bag label, and the <b>weight</b> if the dose is per kg. Then the <b>Dose</b> and <b>VTBI</b>. Rate calculates.</li>
+          <li><b>START</b> → <i>Confirm Program?</i> check dose, drug, concentration and weight → <b>Yes</b>.</li>
+          <li>Titrate: <b>[A]</b> while running, type the new Dose (or Rate), <b>START</b>.</li>
+          <li>Duration is typed as hours and minutes: 30 = 30 min, 130 = 1 hr 30 min.</li>
+        </ol>
+      </div>
+      <div class="panel only-plum">
+        <h3>Piggyback on Line B</h3>
+        <ol>
+          <li>Attach the secondary container to the <b>secondary inlet</b> of the cassette (no need to hang it higher).</li>
+          <li>With Line A pumping, press <b>[B]</b>. Mode should read <b>Piggyback</b> (Change Mode switches to Concurrent).</li>
+          <li>Type the Rate and VTBI (or VTBI and Duration). Press <b>START</b>.</li>
+          <li>Line A shows <b>DELAYED</b> while B runs, then restarts by itself when B's VTBI is done.</li>
+          <li><b>Concurrent</b> runs A and B at the same time, each at its own rate.</li>
+        </ol>
+      </div>
+      <div class="panel only-plum">
+        <h3>No dose limits on this pump</h3>
+        <p>This model's drug list holds drug <b>names</b> only. It has no soft or hard limits, so it will not stop a wrong dose, a wrong concentration or a wrong weight. You type the concentration yourself, so check it against the bag label and get an independent double check for high-alert drugs.</p>
+      </div>
       <div class="panel">
         <h3>Soft limits vs. hard limits</h3>
         <p><b>Soft limit</b>: the dose is unusual for this care area. Stop, re-read the order, recheck your math and the patient's weight. Override only if the order is correct and verified. Overrides are recorded.</p>
@@ -330,13 +425,14 @@ volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(250 mL over 90 min = 250 ÷ 1.5 = 
 </main>
 
 <footer>
-  <p><b>For education only.</b> This simulator is modeled on the general workflow of large-volume pumps with dose error reduction software (for example, a PC unit with LVP modules and a Guardrails-style library). It is not a copy of any manufacturer's software and is not affiliated with or endorsed by BD. The single-channel pump is modeled on the general workflow of color-screen pumps with an onboard drug library and is not affiliated with or endorsed by Baxter. Alaris, Guardrails, Spectrum and Spectrum IQ are trademarks of their owners.</p>
+  <p><b>For education only.</b> This simulator is modeled on the general workflow of large-volume pumps with dose error reduction software (for example, a PC unit with LVP modules and a Guardrails-style library). It is not a copy of any manufacturer's software and is not affiliated with or endorsed by BD. The single-channel pump is modeled on the general workflow of color-screen pumps with an onboard drug library and is not affiliated with or endorsed by Baxter. The dual-line cassette pump is modeled on the general workflow of cassette pumps with two inlet lines and is not affiliated with or endorsed by ICU Medical or Hospira. Alaris, Guardrails, Spectrum, Spectrum IQ and Plum A+ are trademarks of their owners.</p>
   <p>Drug concentrations and limits are teaching values. Always follow your facility's library, policies, and the manufacturer's directions for use. Practice patients and orders are made up.</p>
 </footer>
 <!--BODY-END-->
 <script src="js/library.js"></script>
 <script src="js/pump.js"></script>
 <script src="js/spectrum.js"></script>
+<script src="js/plum.js"></script>
 <script src="js/scenarios.js"></script>
 <script src="js/practice.js"></script>
 <script src="js/app.js"></script>
