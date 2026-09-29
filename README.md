@@ -33,7 +33,7 @@ A **Bedside** panel covers the hands-on steps: spike and prime, load the set, tr
 `<iframe src="https://laurajobe.github.io/IV-INFUSION-PUMPS/" width="100%" height="1200" style="border:0" allow="autoplay" title="IV Pump Practice Lab"></iframe>`.
 If your institution blocks embedded sites, add it as a Link instead.
 
-**SCORM package (grades):** run `python3 tools/build_scorm.py IV-Pump-Check-off-SCORM.zip` and upload the zip as a SCORM package. It opens as a check-off: 5 random orders from the practice order library (one from each specialty plus one more, no drug repeated), one attempt each. The score sent to the Grade Center is the percent programmed correctly (for example 4 of 5 = 80%). There is no pass/fail or mastery score. The check-off is not offered on the public website.
+**SCORM packages (grades):** there is one package per pump, so a graded check-off uses only that pump (no picker, no Change pump button). Run `python3 tools/build_scorm.py IV-Pump-Check-off-Modular-SCORM.zip --device mod` and/or `python3 tools/build_scorm.py IV-Pump-Check-off-Single-Channel-SCORM.zip --device sq`, then upload each zip as its own SCORM package. It opens as a check-off: 5 random orders from the practice order library (one from each specialty plus one more, no drug repeated), one attempt each. The score sent to the Grade Center is the percent programmed correctly (for example 4 of 5 = 80%). There is no pass/fail or mastery score. The check-off is not offered on the public website.
 
 ## Files
 

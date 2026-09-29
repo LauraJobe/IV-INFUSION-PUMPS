@@ -101,7 +101,7 @@
   // ------------------------------------------------------------ pump picker
   function setDevice(dev, keepMode) {
     DEV = dev;
-    store.set("ivp-dev", dev);
+    if (!CFG0.device) store.set("ivp-dev", dev);
     const next = dev === "sq" ? Spectrum : Pump;
     if (next !== P) { P.reset(); P = next; }
     document.body.classList.toggle("dev-sq", dev === "sq");
