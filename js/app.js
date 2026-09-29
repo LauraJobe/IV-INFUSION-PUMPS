@@ -318,7 +318,7 @@
     sel.value = scn.id;
     X = { phase: 0, decisions: {}, met: {}, miss: {}, showDebrief: false };
     hintsShown = 0;
-    document.body.classList.toggle("practice-mode", !!scn.practice);
+    document.body.classList.toggle("practice-mode", !!(scn.practice || scn.noBedside));
     if (scn.practice) newPracticeOrder(); else scn.setup(Pump);
     store.set("ivp-scn", scn.id);
     $("#scenarioSummary").textContent = scn.summary || "";
@@ -346,6 +346,7 @@
       practiceScore.streak++;
       if (practiceScore.streak > practiceScore.best) { practiceScore.best = practiceScore.streak; store.set("ivp-best", String(practiceScore.best)); }
     } else practiceScore.streak = 0;
+    window.dispatchEvent(new CustomEvent("ivp-result", { detail: { correct: practiceScore.correct, total: practiceScore.total, ok: r.ok } }));
   }
 
   function renderPractice(S) {
@@ -525,7 +526,7 @@
     const S = Pump.state;
     renderLCD(S);
     renderModules(S);
-    if (!scn || !scn.practice) renderBedside(S);
+    if (!scn || !(scn.practice || scn.noBedside)) renderBedside(S);
     if (scn) renderCoach(S);
     $("#clock").textContent = fmtClock(S.t);
     alarmAudio(S);
