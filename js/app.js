@@ -748,6 +748,10 @@
     sel.disabled = true;
     $("#restartBtn").hidden = true;
   }
+  // Installable app on phones and tablets (the public website only, not an LMS package).
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && window.isSecureContext && !CFG.lms) {
+    try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* not allowed here */ }
+  }
   if (DEV) setDevice(DEV, false); else showPicker();
   loadScenario(CFG.mode || store.get("ivp-scn") || "practice");
   fitPump();

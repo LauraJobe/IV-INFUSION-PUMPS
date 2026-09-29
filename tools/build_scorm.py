@@ -20,7 +20,8 @@ if device not in ("mod", "sq"):
     sys.exit("choose a pump: --device mod  or  --device sq")
 pump_name = {"mod": "Modular pump", "sq": "Single-channel pump"}[device]
 js_files = sorted(str(p.relative_to(root)) for p in (root / "js").glob("*.js"))
-files = ["index.html", "manifest.webmanifest", "css/pump.css", "js/config.js"] + js_files
+icon_files = sorted(str(p.relative_to(root)) for p in (root / "icons").glob("*.png"))
+files = ["index.html", "manifest.webmanifest", "css/pump.css", "js/config.js"] + js_files + icon_files
 
 config = f'window.IVP_CONFIG = {{ mode: "quiz", lockMode: true, lms: true, device: "{device}" }};\n'
 html = (root / "index.html").read_text()
@@ -55,6 +56,6 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
     z.writestr("js/config.js", config)
     z.write(root / "css/pump.css", "css/pump.css")
     z.write(root / "manifest.webmanifest", "manifest.webmanifest")
-    for f in js_files:
+    for f in js_files + icon_files:
         z.write(root / f, f)
 print(f"wrote {out} ({pump_name}) with {len(files)} files")
