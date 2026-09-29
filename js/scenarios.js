@@ -12,10 +12,19 @@ const SCENARIOS = [
   },
   {
     id: "free", level: "Practice", title: "Free practice: explore the pump",
-    summary: "No order to follow. Start from power-off and try every screen, including tubing, clamps and alarms.",
+    summary: "No order to follow. Start from power-off and try every screen. Tubing is already primed and loaded on both channels.",
     patient: null,
-    setup: (P) => P.reset(),
-    order: () => `<p>No order. Try each feature: start-up, a Guardrails drug, a weight-based drip, a secondary, a soft-limit override, a hard limit, and the bedside actions that cause alarms.</p>`,
+    noBedside: true,
+    setup: (P) => {
+      P.reset();
+      // Lines ready on both channels, with a secondary bag hung and open.
+      CHANNEL_IDS.forEach((id) => Object.assign(P.state.channels[id].bedside, {
+        primed: true, loaded: true, traced: true, clampOpen: true, primaryBag: 5000, primaryBagName: "Primary bag",
+        secondaryHung: true, secondaryClampOpen: true, secondaryBag: 5000, secondaryBagName: "Secondary bag",
+      }));
+      P.emit();
+    },
+    order: () => `<p>No order. Try each feature: start-up, a Guardrails drug, a weight-based drip, a titration, a secondary, a soft-limit override and a hard limit.</p>`,
     bags: [
       { name: "0.9% Sodium Chloride 1000 mL", vol: 1000 },
       { name: "Lactated Ringer's 1000 mL", vol: 1000 },
@@ -25,6 +34,6 @@ const SCENARIOS = [
       { name: "Vancomycin 1 g / 250 mL (secondary)", vol: 250, secondary: true },
     ],
     goals: [],
-    hints: ["Press SYSTEM ON to begin.", "Use the Bedside panel to prime and load tubing before pressing START."],
+    hints: ["Press SYSTEM ON to begin.", "After start-up, press CHANNEL SELECT on module A or B."],
   },
 ];
