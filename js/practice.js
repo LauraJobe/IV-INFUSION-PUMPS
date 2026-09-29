@@ -278,11 +278,13 @@ const PRACTICE = (() => {
     ],
   };
 
-  function newOrder(filter) {
-    for (let i = 0; i < 60; i++) {
+  // opts.noHold: the pump has no dose limits, so skip orders that rely on a hard-limit alert.
+  function newOrder(filter, opts = {}) {
+    for (let i = 0; i < 80; i++) {
       const spec = filter && filter !== "all" ? filter : pick(Object.keys(GEN));
       const o = pick(GEN[spec])();
       if (!o) continue;
+      if (opts.noHold && o.kind === "hold") continue;
       if (excluded(`${o.drugId}:${o.rate}`) || (o.dose != null && excluded(`${o.drugId}:d${o.dose}`))) continue;
       o.patient.mrn = String(randInt(400000, 899999));
       o.patient.unit = UNIT[o.spec];
@@ -339,9 +341,20 @@ const PRACTICE = (() => {
     const e = find(type) || (o.kind === "secondary" ? find("start") : null);
     if (!e) return null;
     const items = [];
-    if (e.type !== type) items.push({ label: "Programmed as a SECONDARY", ok: false, want: "SECONDARY soft key", got: "New primary" });
-    items.push({ label: "Guardrails entry", ok: e.mode === "guardrails" && e.drugId === o.drugId, want: d.name, got: e.mode === "basic" ? "Basic Infusion (no limits)" : (DRUGS[e.drugId] || {}).name || e.drugId });
-    if (d.concs.length > 1 && o.conc.amt) items.push({ label: "Concentration", ok: e.drugId === o.drugId && e.concVol === o.conc.vol && (e.concAmt == null || e.concAmt === o.conc.amt), want: concLabel(d, o.conc), got: e.concVol ? `${e.concAmt != null ? fmtNum(e.concAmt, 3) + " " + o.conc.unit + " / " : ""}${e.concVol} mL` : "—" });
+    const plum = e.pump === "plum";
+    if (e.type !== type) items.push(plum
+      ? { label: "Line B in Piggyback mode", ok: false, want: "Piggyback on Line B", got: e.concurrent ? "Concurrent" : "Programmed as a new primary" }
+      : { label: "Programmed as a SECONDARY", ok: false, want: "SECONDARY soft key", got: "New primary" });
+    const dn = (id) => (DRUGS[id] || {}).name || id;
+    if (plum && d.dose) {
+      items.push({ label: "Drug + Dose Calculation", ok: e.therapy === "dosecalc" && e.drugId === o.drugId, want: `${d.name}, Dose Calculation`, got: e.therapy === "dosecalc" ? `${e.drugId ? dn(e.drugId) : "No Drug Selected"}, Dose Calculation` : "Rate only (no Dose Calculation)" });
+      const wantU = doseUnitLabel(d).replace(/^g\//, "grams/").replace(/^milliunits/, "mUn");
+      if (e.therapy === "dosecalc") items.push({ label: "Dose units", ok: e.doseUnit === wantU, want: wantU, got: e.doseUnit });
+    } else if (plum) {
+      // No dose on a rate-only order: the drug name is optional, but must not be the wrong drug.
+      if (e.drugId && e.drugId !== o.drugId) items.push({ label: "Drug name", ok: false, want: d.name, got: dn(e.drugId) });
+    } else items.push({ label: "Guardrails entry", ok: e.mode === "guardrails" && e.drugId === o.drugId, want: d.name, got: e.mode === "basic" ? "Basic Infusion (no limits)" : dn(e.drugId) });
+    if ((plum ? !!d.dose : d.concs.length > 1) && o.conc.amt) items.push({ label: "Concentration", ok: e.drugId === o.drugId && e.concVol === o.conc.vol && (e.concAmt == null ? !plum : Math.abs(e.concAmt - o.conc.amt) < 1e-6), want: concLabel(d, o.conc), got: e.concVol ? `${e.concAmt != null ? fmtNum(e.concAmt, 3) + " " + o.conc.unit + " / " : ""}${e.concVol} mL` : "—" });
     if (o.perKg) items.push({ label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
     const rows = [];
     if (o.dose != null && d.dose) rows.push(["Dose", e.dose, o.dose, doseU]);
@@ -393,5 +406,24 @@ const PRACTICE = (() => {
     return steps;
   }
 
-  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps };
+  // Steps for the dual-line cassette pump (plum.js).
+  const plumUnit = (d) => doseUnitLabel(d).replace(/^g\//, "grams/").replace(/^milliunits/, "mUn");
+  const plumConcUnit = (u) => (u === "g" ? "grams" : u);
+  function plumSteps(o) {
+    const d = o.drug, c = o.conc;
+    const startIt = "Check Rate, VTBI and Duration against the order → press <b>START</b>";
+    if (o.kind === "titrate") return ["Press the <b>[A]</b> soft key (Dose is highlighted)", `Type <b>${fmtNum(o.dose, 3)}</b> (rate becomes ${fmtNum(o.rate, 1)} mL/hr)`, "Press <b>START</b> to accept the new dose"];
+    if (o.kind === "secondary") return ["With Line A pumping, press the <b>[B]</b> soft key. Mode must read <b>Piggyback</b> (use Change Mode if it says Concurrent)",
+      `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b> (Duration fills in as ${durText(o.minutes)})`, "Optional: Program Options → Drug List → " + d.name + " → Enter → Enter", "Press <b>START</b>. Line A shows DELAYED and restarts by itself when B finishes"];
+    if (d.dose && o.dose != null) {
+      return ["Press <b>[A]</b> → <b>Therapy</b> → Drug List: highlight <b>" + d.name + "</b> (▲▼ or Page Down) → <b>Enter</b>",
+        `<b>Dose Calculation</b> → Choose → dose units <b>${plumUnit(d)}</b> → Choose → container units <b>${plumConcUnit(c.unit)}</b> → Choose`,
+        `Conc <b>${fmtNum(c.amt, 3)}</b> ${plumConcUnit(c.unit)} → ▼ → <b>${fmtNum(c.vol)}</b> mL${o.perKg ? ` → ▼ → Weight <b>${o.patient.weight}</b> kg` : ""}`,
+        `▼ → Dose <b>${fmtNum(o.dose, 3)}</b> → ▼ → VTBI <b>${fmtNum(o.vtbi)}</b> (rate ${fmtNum(o.rate, 1)} mL/hr)`,
+        "Press <b>START</b> → Confirm Program? <b>Yes</b>"];
+    }
+    return ["Press the <b>[A]</b> soft key (Rate is highlighted)", `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b>`, startIt];
+  }
+
+  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps };
 })();
