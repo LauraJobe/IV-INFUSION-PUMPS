@@ -162,6 +162,29 @@ const DRUGS = {
     dose: { unit: "mcg", perKg: false, time: "min" },
     limits: { softMin: 10, softMax: 200, hardMax: 300 },
   },
+  // Weight-based entries for the same bags. The order's units decide which
+  // entry to pick: mcg/min -> the plain entry, mcg/kg/min -> weight-based.
+  norepinephrineKg: {
+    name: "Norepinephrine (weight-based)", generic: "Norepinephrine", base: "norepinephrine", short: "Norepi WB", cls: "Vasopressor", highAlert: true,
+    concs: [{ amt: 4, unit: "mg", vol: 250 }, { amt: 8, unit: "mg", vol: 250 }],
+    dose: { unit: "mcg", perKg: true, time: "min" },
+    limits: { softMin: 0.01, softMax: 1, hardMax: 3 },
+    note: "Weight-based entry (mcg/kg/min). Pick the entry that matches the order's units.",
+  },
+  epinephrineKg: {
+    name: "Epinephrine (weight-based)", generic: "Epinephrine", base: "epinephrine", short: "Epi WB", cls: "Vasopressor", highAlert: true,
+    concs: [{ amt: 1, unit: "mg", vol: 250 }],
+    dose: { unit: "mcg", perKg: true, time: "min" },
+    limits: { softMin: 0.01, softMax: 0.5, hardMax: 1 },
+    note: "Weight-based entry (mcg/kg/min). Pick the entry that matches the order's units.",
+  },
+  phenylephrineKg: {
+    name: "Phenylephrine (weight-based)", generic: "Phenylephrine", base: "phenylephrine", short: "Phenyl WB", cls: "Vasopressor", highAlert: true,
+    concs: [{ amt: 20, unit: "mg", vol: 250 }],
+    dose: { unit: "mcg", perKg: true, time: "min" },
+    limits: { softMin: 0.1, softMax: 3, hardMax: 6 },
+    note: "Weight-based entry (mcg/kg/min). Pick the entry that matches the order's units.",
+  },
   dopamine: {
     name: "DOPamine", short: "DOPamine", cls: "Inotrope/vasopressor", highAlert: true,
     concs: [{ amt: 400, unit: "mg", vol: 250 }],
@@ -276,6 +299,7 @@ const PROFILES = {
       kcl: { limits: { softMax: 10, hardMax: 20 }, note: "Central line: soft max 10, hard max 20 mEq/hr with cardiac monitoring." },
       magnesium: {}, heparin: {}, insulin: {}, prbc: {},
       norepinephrine: {}, epinephrine: {}, vasopressin: {}, phenylephrine: {},
+      norepinephrineKg: {}, epinephrineKg: {}, phenylephrineKg: {},
       dopamine: {}, dobutamine: {}, nitroglycerin: {}, nicardipine: {},
       diltiazem: {}, amiodarone: {}, esmolol: {},
       propofol: {}, fentanyl: {}, midazolam: {}, dexmedetomidine: {},

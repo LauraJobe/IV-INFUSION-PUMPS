@@ -55,6 +55,16 @@ const PRACTICE = (() => {
     return !(l.softMax != null && v > l.softMax) && !(l.softMin != null && v < l.softMin);
   }
 
+  // Worked math with the concentration in the dose's own unit, e.g.
+  // 0.1 mcg/kg/min × 80 kg × 60 min = 480 mcg/h ÷ 32 mcg/mL = 15 mL/h.
+  function doseMath(d, c, dose, weight, rate) {
+    const u = d.dose.unit, uLbl = u === "g" ? "g" : u;
+    const perMl = (c.amt * UNIT_FACTORS[c.unit]) / UNIT_FACTORS[u] / c.vol;
+    const perHr = dose * (d.dose.perKg ? weight : 1) * (d.dose.time === "min" ? 60 : 1);
+    const steps = d.dose.perKg || d.dose.time === "min" ? ` = ${fmtNum(perHr, 3)} ${uLbl}/h` : "";
+    return `${fmtNum(dose, 3)} ${doseUnitLabel(d)}${d.dose.perKg ? ` × ${weight} kg` : ""}${d.dose.time === "min" ? " × 60 min" : ""}${steps} ÷ ${fmtNum(perMl, 3)} ${uLbl}/mL = <b>${fmtNum(rate, 1)} mL/h</b>`;
+  }
+
   function continuous(spec, drugId, doses, opts = {}) {
     const d = profileDrug(spec, drugId);
     const ci = opts.concIdx != null ? opts.concIdx : randInt(0, d.concs.length - 1);
@@ -68,8 +78,8 @@ const PRACTICE = (() => {
     return {
       spec, kind: opts.hold ? "hold" : "primary", drugId, concIdx: ci, dose, rate, vtbi: c.vol, patient: p,
       perKg: d.dose.perKg,
-      text: `<b>${d.name} ${concText(d, c)}</b>. ${opts.verb || "Start at"} <b>${fmtNum(dose, 3)} ${unit}</b>${opts.tail || ""}.`,
-      math: `${fmtNum(dose, 3)} ${unit}${d.dose.perKg ? ` × ${p.weight} kg` : ""}${d.dose.time === "min" ? " × 60 min" : ""} ÷ ${concPerMlLabel(c)} = <b>${fmtNum(rate, 1)} mL/h</b>. VTBI = ${fmtNum(c.vol)} mL.`,
+      text: `<b>${d.generic || d.name} ${concText(d, c)}</b>. ${opts.verb || "Start at"} <b>${fmtNum(dose, 3)} ${unit}</b>${opts.tail || ""}.`,
+      math: `${doseMath(d, c, dose, p.weight, rate)}. VTBI = ${fmtNum(c.vol)} mL.`,
       steps: [`CHANNEL SELECT → Guardrails Drugs → ${d.name}${d.concs.length > 1 ? ` → ${concLabel(d, c)}` : ""} → Yes${d.highAlert ? " → CONFIRM" : ""}`,
         d.dose.perKg ? `PATIENT WEIGHT ${p.weight} → CONFIRM → NEXT` : "NEXT", `DOSE ${fmtNum(dose, 3)} → VTBI ${fmtNum(c.vol)} → START`],
     };
@@ -121,8 +131,8 @@ const PRACTICE = (() => {
     const unit = doseUnitLabel(d);
     return {
       spec, kind: "titrate", drugId, concIdx: ci, fromDose: from, dose: to, rate, patient: p, perKg: d.dose.perKg,
-      text: `<b>${d.name} ${concText(d, c)}</b> is running on Channel A at ${fmtNum(from, 3)} ${unit}.<br>${opts.reason || "New order:"} <b>${to > from ? "Increase" : "Decrease"} to ${fmtNum(to, 3)} ${unit}</b>.`,
-      math: `${fmtNum(to, 3)} ${unit}${d.dose.perKg ? ` × ${p.weight} kg` : ""}${d.dose.time === "min" ? " × 60" : ""} ÷ ${concPerMlLabel(c)} = <b>${fmtNum(rate, 1)} mL/h</b>. Change the DOSE, not the rate.`,
+      text: `<b>${d.generic || d.name} ${concText(d, c)}</b> is running on Channel A at ${fmtNum(from, 3)} ${unit}.<br>${opts.reason || "New order:"} <b>${to > from ? "Increase" : "Decrease"} to ${fmtNum(to, 3)} ${unit}</b>.`,
+      math: `${doseMath(d, c, to, p.weight, rate)}. Change the DOSE, not the rate.`,
       steps: ["CHANNEL SELECT on A", `DOSE ${fmtNum(to, 3)} → START`],
     };
   }
@@ -242,6 +252,10 @@ const PRACTICE = (() => {
       () => continuous("icu", "epinephrine", [1, 2, 3, 5]),
       () => continuous("icu", "vasopressin", [0.03, 0.04]),
       () => continuous("icu", "phenylephrine", [20, 40, 50, 80, 100]),
+      () => continuous("icu", "norepinephrineKg", [0.02, 0.05, 0.08, 0.1, 0.15]),
+      () => continuous("icu", "epinephrineKg", [0.02, 0.05, 0.08, 0.1]),
+      () => continuous("icu", "phenylephrineKg", [0.25, 0.5, 1, 1.5]),
+      () => titrate("icu", "norepinephrineKg", [0.05, 0.08, 0.1], 0.02, { multipliers: [1, 2], reason: "MAP 58:" }),
       () => continuous("icu", "dopamine", [3, 5, 8, 10]),
       () => continuous("icu", "dobutamine", [2.5, 5, 7.5, 10]),
       () => continuous("icu", "propofol", [10, 15, 20, 25, 30]),
@@ -416,7 +430,7 @@ const PRACTICE = (() => {
     if (o.kind === "secondary") return ["With Line A pumping, press the <b>[B]</b> soft key. Mode must read <b>Piggyback</b> (use Change Mode if it says Concurrent)",
       `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b> (Duration fills in as ${durText(o.minutes)})`, "Optional: Program Options → Drug List → " + d.name + " → Enter → Enter", "Press <b>START</b>. Line A shows DELAYED and restarts by itself when B finishes"];
     if (d.dose && o.dose != null) {
-      return ["Press <b>[A]</b> → <b>Therapy</b> → Drug List: highlight <b>" + d.name + "</b> (▲▼ or Page Down) → <b>Enter</b>",
+      return ["Press <b>[A]</b> → <b>Therapy</b> → Drug List: highlight <b>" + (d.generic || d.name) + "</b> (▲▼ or Page Down) → <b>Enter</b>",
         `<b>Dose Calculation</b> → Choose → dose units <b>${plumUnit(d)}</b> → Choose → container units <b>${plumConcUnit(c.unit)}</b> → Choose`,
         `Conc <b>${fmtNum(c.amt, 3)}</b> ${plumConcUnit(c.unit)} → ▼ → <b>${fmtNum(c.vol)}</b> mL${o.perKg ? ` → ▼ → Weight <b>${o.patient.weight}</b> kg` : ""}`,
         `▼ → Dose <b>${fmtNum(o.dose, 3)}</b> → ▼ → VTBI <b>${fmtNum(o.vtbi)}</b> (rate ${fmtNum(o.rate, 1)} mL/hr)`,

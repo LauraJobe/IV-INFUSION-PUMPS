@@ -457,6 +457,11 @@
         <p><b>Hard limit</b>: the dose is unsafe for this care area. The pump will not run it. Re-enter or hold and call the provider or pharmacist.</p>
         <p><b>Basic Infusion</b> (on the single-channel pump: <i>not in library</i>, Basic Mode) skips all limits. Never use it to get around an alert, and never for high-alert medications.</p>
       </div>
+      <div class="panel">
+        <h3>Vasopressors: mcg/min or mcg/kg/min?</h3>
+        <p>Norepinephrine, epinephrine and phenylephrine each have <b>two library entries</b> for the same bag: the plain entry doses in <b>mcg/min</b>, the <b>weight-based</b> entry in <b>mcg/kg/min</b>. Read the units in the order and pick the matching entry. 0.1 mcg/kg/min is not 0.1 mcg/min: picking the wrong one is an 80-fold error for an 80 kg patient.</p>
+        <p>On the dual-line cassette pump there is one drug name: choose the dose units (mcg/min or mcg/kg/min) on the Dose Calculation screen and enter the weight.</p>
+      </div>
       <div class="panel wide">
         <h3>Dose calculation formulas</h3>
         <div class="calc">
@@ -466,7 +471,7 @@ units/kg/hr &nbsp;: mL/h = (dose × kg) ÷ (units/mL)<br>
 &nbsp;&nbsp;Heparin 15 units/kg/hr × 70 kg = 1,050 units/hr ÷ 100 units/mL = <b>10.5 mL/h</b><br>
 mcg/min &nbsp;&nbsp;&nbsp;&nbsp;: mL/h = (dose × 60) ÷ (mcg/mL)<br>
 &nbsp;&nbsp;Norepinephrine 8 mg/250 mL = 32 mcg/mL; 6 mcg/min × 60 = 360 ÷ 32 = <b>11.3 mL/h</b><br>
-mcg/kg/min &nbsp;: mL/h = (dose × kg × 60) ÷ (mcg/mL)<br>
+mcg/kg/min &nbsp;: mL/h = (dose × kg × 60) ÷ (mcg/mL)<br>&nbsp;&nbsp;Norepinephrine (weight-based) 0.1 mcg/kg/min × 80 kg × 60 = 480 ÷ 32 = <b>15 mL/h</b><br>
 milliunits/min: Oxytocin 30 units/500 mL = 60 mU/mL; 6 mU/min × 60 = 360 ÷ 60 = <b>6 mL/h</b><br>
 volume/time : mL/h = mL ÷ hours &nbsp;&nbsp;(250 mL over 90 min = 250 ÷ 1.5 = <b>166.7 mL/h</b>)
         </div>

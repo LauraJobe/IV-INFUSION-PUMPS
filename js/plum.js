@@ -75,14 +75,21 @@ const Plum = (() => {
   const isDose = (p) => !!(p && p.therapy === "dose" && p.doseUnit !== "mL/hr");
   const perKg = (p) => isDose(p) && parseUnit(p.doseUnit).perKg;
 
+  // This pump lists each drug name once; the dose units picked decide whether
+  // it matches the library's plain or weight-based entry (for grading).
+  function libId(p) {
+    if (!p.drugId) return null;
+    const ids = [p.drugId].concat(Object.keys(DRUGS).filter((id) => DRUGS[id].base === p.drugId));
+    return ids.find((id) => drugDoseLabel(DRUGS[id]) === p.doseUnit) || p.drugId;
+  }
   // Dose/concentration expressed in the drug library's own units (for grading).
   function libDose(p, rate) {
-    const lib = p.drugId && DRUGS[p.drugId];
+    const lib = p.drugId && DRUGS[libId(p)];
     if (!lib || !lib.dose || !isDose(p)) return null;
     return r3(rateToDose(lib, { amt: p.concAmt * UNIT_FACTORS[NAME_TO_UNIT[p.concUnit]], unit: "mg", vol: p.concVol }, rate, p.weight));
   }
   function libConcAmt(p) {
-    const lib = p.drugId && DRUGS[p.drugId];
+    const lib = p.drugId && DRUGS[libId(p)];
     if (!lib || !isDose(p) || !lib.concs[0].amt) return null;
     return r3((p.concAmt * UNIT_FACTORS[NAME_TO_UNIT[p.concUnit]]) / UNIT_FACTORS[lib.concs[0].unit]);
   }
@@ -174,7 +181,7 @@ const Plum = (() => {
   function startDraft(d) {
     const L = line(d.line), A = line("A");
     const prog = toProgram(d);
-    const evt = { ch: d.line, drugId: d.drugId, mode: isDose(d) ? "guardrails" : "rate", therapy: prog.mode, dose: libDose(prog, d.rate), doseUnit: d.doseUnit, enteredDose: d.dose,
+    const evt = { ch: d.line, drugId: libId(prog), mode: isDose(d) ? "guardrails" : "rate", therapy: prog.mode, dose: libDose(prog, d.rate), doseUnit: d.doseUnit, enteredDose: d.dose,
       concVol: isDose(d) ? d.concVol : null, concAmt: libConcAmt(prog), weight: perKg(d) ? d.weight : null, rate: d.rate, vtbi: d.vtbi, traced: true, overrides: 0 };
     if (d.line === "B" && L.mode === "Piggyback" && ["running", "delayed", "kvo"].includes(A.state) && A.primary) {
       L.primary = prog; L.state = "running"; L.alarm = null; A.state = "delayed";
@@ -334,7 +341,7 @@ const Plum = (() => {
   }
 
   function drugListItems() {
-    const names = Object.keys(DRUGS).filter((id) => !/fluid|blood|bolus/i.test(DRUGS[id].cls))
+    const names = Object.keys(DRUGS).filter((id) => !/fluid|blood|bolus/i.test(DRUGS[id].cls) && !DRUGS[id].base)
       .map((id) => ({ label: DRUGS[id].name, drugId: id }))
       .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
     return [{ label: "No Drug Selected", drugId: null }].concat(names);
@@ -509,7 +516,7 @@ const Plum = (() => {
     const a = (cfg.channels || []).find((x) => x.ch === "A");
     if (a && a.drugId) {
       const drug = profileDrug(cfg.profile, a.drugId) || DRUGS[a.drugId], conc = drug.concs[a.concIdx || 0];
-      const prog = { drugId: drug.dose ? a.drugId : null, drug, overrides: [], vtbi: a.vtbi, remaining: a.remaining != null ? a.remaining : a.vtbi };
+      const prog = { drugId: drug.dose ? drug.base || a.drugId : null, drug, overrides: [], vtbi: a.vtbi, remaining: a.remaining != null ? a.remaining : a.vtbi };
       if (drug.dose && a.dose != null) {
         Object.assign(prog, { therapy: "dose", mode: "dosecalc", doseUnit: drugDoseLabel(drug), concUnit: UNIT_TO_NAME[conc.unit], concAmt: conc.amt, concVol: conc.vol, weight: drug.dose.perKg ? S.weight : null, dose: a.dose });
         prog.rate = r1(doseToRate(drug, conc, a.dose, S.weight));
