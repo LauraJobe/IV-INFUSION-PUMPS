@@ -729,3 +729,18 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 @media (prefers-reduced-motion: reduce) {
   .bbs-run.go, .bbs-alarm, .bb-led.g.red { animation: none; }
 }
+
+/* ---------- facility start screen ---------- */
+.fac-picker { text-align: center; padding: 8px 0 24px; }
+.fac-picker h2 { font: 700 26px var(--f-display); letter-spacing: .02em; margin: 6px 0 4px; }
+.fac-sub { color: var(--muted); margin: 0 0 16px; }
+.fac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; max-width: 820px; margin: 0 auto; }
+.fac-card { display: flex; flex-direction: column; gap: 3px; align-items: center; padding: 18px 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; transition: border-color .15s, transform .15s; }
+.fac-card:hover, .fac-card:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.fac-card strong { font: 700 21px var(--f-display); letter-spacing: .02em; }
+.fac-card span { font-size: 13px; color: var(--muted); }
+.fac-card.all { border-style: dashed; background: var(--surface-2); }
+.pp-back { display: block; margin: 0 auto 6px 0; }
+.pp-where { font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--accent); margin-top: 4px; }
+.fac-label { font-size: 13px; font-weight: 600; color: var(--ink); margin-left: auto; }
+.fac-label + .change-pump { margin-left: 0; }

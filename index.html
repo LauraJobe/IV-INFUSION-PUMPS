@@ -45,10 +45,26 @@
             <button data-speed="300" aria-pressed="false">300×</button>
           </span>
           <span>Sim time <span class="clock" id="clock">00:00:00</span></span>
-          <button class="btn-plain change-pump" id="changePump" hidden>Change pump</button>
+          <span class="fac-label" id="facLabel"></span>
+          <button class="btn-plain change-pump" id="changePump" hidden>Change facility</button>
+        </div>
+
+        <div class="fac-picker" id="facilityPicker" hidden>
+          <h2>Please select your clinical facility</h2>
+          <p class="fac-sub">You will practice on the pump your facility uses.</p>
+          <div class="fac-grid">
+            <button class="fac-card" data-fac="conway"><strong>Conway</strong><span>Dual-line cassette pump</span></button>
+            <button class="fac-card" data-fac="childrens"><strong>Children's</strong><span>Single-channel pump</span></button>
+            <button class="fac-card" data-fac="stmarys"><strong>St. Mary's</strong><span>Single-channel pump</span></button>
+            <button class="fac-card" data-fac="chambers"><strong>Chambers</strong><span>Compact arrow-key pump</span></button>
+            <button class="fac-card" data-fac="clarksville"><strong>Clarksville</strong><span>Compact arrow-key pump</span></button>
+            <button class="fac-card" data-fac="northwest"><strong>Northwest</strong><span>Modular pump</span></button>
+            <button class="fac-card all" data-fac="all"><strong>See all pumps</strong><span>Choose any pump to practice on</span></button>
+          </div>
         </div>
 
         <div class="pump-picker" id="pumpPicker" hidden>
+          <button class="btn-plain pp-back" id="ppBack">← Back to facilities</button>
           <h2>Choose the pump you want to practice on</h2>
           <div class="pp-cards">
             <button class="pp-card" data-dev="mod" aria-label="Modular pump: center screen with channel modules on each side">
@@ -64,6 +80,7 @@
               </svg>
               <strong>Modular pump</strong>
               <span>Center screen with a channel module on each side</span>
+              <em class="pp-where">Used at: Northwest</em>
             </button>
             <button class="pp-card" data-dev="sq" aria-label="Single-channel pump: color screen with the door on the right">
               <svg viewBox="0 0 240 170" aria-hidden="true">
@@ -80,6 +97,7 @@
               </svg>
               <strong>Single-channel pump</strong>
               <span>Color screen and keypad, door on the right</span>
+              <em class="pp-where">Used at: Children's, St. Mary's</em>
             </button>
             <button class="pp-card" data-dev="plum" aria-label="Dual-line cassette pump: lines A and B through one cassette on the left, screen and keypad on the right">
               <svg viewBox="0 0 240 170" aria-hidden="true">
@@ -98,6 +116,7 @@
               </svg>
               <strong>Dual-line cassette pump</strong>
               <span>Lines A and B through one cassette, keypad on the right</span>
+              <em class="pp-where">Used at: Conway</em>
             </button>
             <button class="pp-card" data-dev="space" aria-label="Compact arrow-key pump: small black display, values dialed in with arrow keys">
               <svg viewBox="0 0 240 170" aria-hidden="true">
@@ -114,9 +133,10 @@
               </svg>
               <strong>Compact arrow-key pump</strong>
               <span>Small black display, no number keys: values are dialed in with arrows</span>
+              <em class="pp-where">Used at: Chambers, Clarksville</em>
             </button>
           </div>
-          <p class="pp-note">You can switch pumps any time with <b>Change pump</b>.</p>
+          <p class="pp-note">You can switch any time with <b>Change facility</b>.</p>
         </div>
 
         <div class="pump-wrap">

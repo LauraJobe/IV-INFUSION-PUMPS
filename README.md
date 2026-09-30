@@ -2,7 +2,7 @@
 
 A browser-based simulator where nursing students practice programming a large-volume IV pump with a Guardrails-style drug library. The interface and button flow follow the BD Alaris™ System with Guardrails™ Suite MX user manual (PC unit with soft keys, pump modules on each side).
 
-Students first **choose a pump** from four drawings (no logos):
+The start screen asks students to **select their clinical facility**, which opens the pump that facility uses: Conway → dual-line cassette pump, Children's and St. Mary's → single-channel pump, Chambers and Clarksville → compact arrow-key pump, Northwest → modular pump. **See all pumps** opens the pump picker instead, where students **choose a pump** from four drawings (no logos):
 
 - **Modular pump**: center screen with a channel module on each side (Alaris-style workflow).
 - **Single-channel pump**: color screen, four round soft keys, ON/OFF · SCAN · OK · RUN/STOP, a keypad that also types letters, and the door on the right (workflow from the Baxter Spectrum IQ operator manual: New Patient → care area → Drug Search by first letters → concentration → CONFIRM → advisory → weight/dose/VTBI → RUN/STOP → Check Flow; secondaries by stopping the pump → program pri/sec → program secndry; dose change from the RUN screen).
@@ -11,7 +11,7 @@ Students first **choose a pump** from four drawings (no logos):
 
 - **Compact arrow-key pump**: small black four-line display and **no number keys**. Values are dialed in with ◀ ▶ (pick the digit) and ▲ ▼ (change it), OK confirms (workflow from the B. Braun Infusomat Space Instructions for Use: Press OK to program → Care Unit → drug list with ▶ jumping ABC → DEF → concentration → advisory → weight → doserate editor → VTBI → START on the top line → Start/Stop; soft limit "Override?" Yes ▲ / No ▼; the editor stops at a hard limit and shows a message; SECondary from the stopped home screen with a bag-height reminder; titrate with ◀ then OK).
 
-Practice mode, free practice, the check-off, grading and the drug library are shared by all four pumps. **Change pump** switches at any time; the choice is remembered on that device.
+Practice mode, free practice, the check-off, grading and the drug library are shared by all four pumps. **Change facility** switches at any time; the choice is remembered on that device. The facility list is `FACILITIES` in `js/app.js`.
 
 **Open `index.html` in any browser.** No install, no internet needed except for fonts. It also works on GitHub Pages.
 

@@ -138,6 +138,22 @@
   });
 
   // ------------------------------------------------------------ pump picker
+  // Clinical facilities and the pump each one uses.
+  const FACILITIES = {
+    conway: { name: "Conway", dev: "plum" },
+    childrens: { name: "Children's", dev: "sq" },
+    stmarys: { name: "St. Mary's", dev: "sq" },
+    chambers: { name: "Chambers", dev: "space" },
+    clarksville: { name: "Clarksville", dev: "space" },
+    northwest: { name: "Northwest", dev: "mod" },
+  };
+  const PUMP_NAMES = { mod: "Modular pump", sq: "Single-channel pump", plum: "Dual-line cassette pump", space: "Compact arrow-key pump" };
+  let FAC = store.get("ivp-fac");
+  function showFacLabel() {
+    const f = FACILITIES[FAC];
+    $("#facLabel").textContent = CFG0.device || !DEV ? "" : `${f ? f.name + " · " : ""}${PUMP_NAMES[DEV]}`;
+  }
+
   function setDevice(dev, keepMode) {
     DEV = dev;
     if (!CFG0.device) store.set("ivp-dev", dev);
@@ -149,23 +165,41 @@
     document.body.classList.toggle("dev-mod", dev === "mod");
     document.body.classList.remove("picking");
     $("#pumpPicker").hidden = true;
+    $("#facilityPicker").hidden = true;
     $("#pump").hidden = dev !== "mod";
     $("#sq").hidden = dev !== "sq";
     $("#plum").hidden = dev !== "plum";
     $("#space").hidden = dev !== "space";
     $(".pump-wrap").hidden = false;
     $("#changePump").hidden = !!CFG0.device;
+    showFacLabel();
     if (keepMode !== false && scn) loadScenario(sel.value);
     requestAnimationFrame(fitPump);
   }
+  // Start screen: pick the clinical facility (or "See all pumps").
+  function showFacilities() {
+    document.body.classList.add("picking");
+    $("#facilityPicker").hidden = false;
+    $("#pumpPicker").hidden = true;
+    $(".pump-wrap").hidden = true;
+    $("#changePump").hidden = true;
+  }
   function showPicker() {
     document.body.classList.add("picking");
+    $("#facilityPicker").hidden = true;
     $("#pumpPicker").hidden = false;
     $(".pump-wrap").hidden = true;
     $("#changePump").hidden = true;
   }
-  $$(".pp-card").forEach((b) => b.addEventListener("click", () => { audioUnlock(); setDevice(b.dataset.dev); }));
-  $("#changePump").addEventListener("click", showPicker);
+  $$(".pp-card").forEach((b) => b.addEventListener("click", () => { audioUnlock(); FAC = "all"; store.set("ivp-fac", FAC); setDevice(b.dataset.dev); }));
+  $$(".fac-card").forEach((b) => b.addEventListener("click", () => {
+    audioUnlock();
+    if (b.dataset.fac === "all") return showPicker();
+    FAC = b.dataset.fac; store.set("ivp-fac", FAC);
+    setDevice(FACILITIES[FAC].dev);
+  }));
+  $("#ppBack").addEventListener("click", showFacilities);
+  $("#changePump").addEventListener("click", showFacilities);
 
   // ------------------------------------------------------------ fit to screen
   // Scale the whole pump (A | PC unit | B) to the available width so phones
@@ -923,7 +957,7 @@
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && window.isSecureContext && !CFG.lms) {
     try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* not allowed here */ }
   }
-  if (DEV) setDevice(DEV, false); else showPicker();
+  if (DEV) setDevice(DEV, false); else showFacilities();
   loadScenario(CFG.mode || store.get("ivp-scn") || "practice");
   fitPump();
 })();
