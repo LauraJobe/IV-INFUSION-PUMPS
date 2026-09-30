@@ -199,7 +199,13 @@ const Syringe = (() => {
       if (drug.highAlert) return go("advisory");
       return toBrands();
     }
-    if (sc.id === "brand") { S.draft.syrType = it.brand; log("syringeType", { ch: "A", brand: it.brand }); return toLoad(); }
+    if (sc.id === "brand") {
+      S.draft.syrType = it.brand; log("syringeType", { ch: "A", brand: it.brand });
+      // Free play: the nurse loads the brand picked (size stays random). Practice
+      // orders come with the pharmacy's syringe, which must be matched.
+      if (!S.fixedSyringe) S.syringe = { brand: it.brand, size: S.syringe ? S.syringe.size : randomSyringe().size };
+      return toLoad();
+    }
   }
 
   function toParams() {
