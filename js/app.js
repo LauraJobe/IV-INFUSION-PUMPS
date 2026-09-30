@@ -136,7 +136,18 @@
   });
 
   // Syringe pump keys
-  $$("[data-sy]").forEach((b) => b.addEventListener("click", () => { keyTone(); Syringe.key(b.dataset.sy); }));
+  $$("[data-sy]").forEach((b) => {
+    if (b.dataset.sy === "BOLUS") return;
+    b.addEventListener("click", () => { keyTone(); Syringe.key(b.dataset.sy); });
+  });
+  // BOLUS: a press opens priming from the ready screen; on the prime screen
+  // it must be pressed and held (priming volume counts up while held).
+  const syBolus = $('[data-sy="BOLUS"]');
+  syBolus.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); keyTone();
+    if (Syringe.state.screen.id === "prime") Syringe.bolusDown(); else Syringe.key("BOLUS");
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => syBolus.addEventListener(ev, () => Syringe.bolusUp()));
   $$(".syk").forEach((b) => b.addEventListener("click", () => { keyTone(); Syringe.softKey("B", +b.dataset.i); }));
   $("#syScreen").addEventListener("click", (e) => { const l = e.target.closest("[data-i]"); if (l) { keyTone(); Syringe.softKey("B", +l.dataset.i); } });
   $("#syPower").addEventListener("click", () => {
@@ -820,7 +831,7 @@
         <div class="name">${p.name}</div>
         <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
         <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
-        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? "(pick the matching profile on the pump)" : "(profile already selected)"}</span></dd></dl>`);
+        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? "" : "(profile already selected)"}</span></dd></dl>`);
     setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" || DEV === "space" ? o.text.replace(/ on Channel A/g, " on the pump") : DEV === "plum" ? o.text.replace(/ on Channel A/g, " on Line A").replace(/The secondary bag is hung above the primary with its clamp open\./, "The secondary container is attached to the Line B inlet.") : o.text}</p>`);
     setHTML($("#vitals"), "");
     setHTML($("#decisions"), "");
@@ -840,8 +851,8 @@
           : `<button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}`}</div>`;
     } else {
       const help = DEV === "syr"
-        ? (o.kind === "titrate" ? "The drip is running. Press <b>CHG DOSE</b>, type the new dose, ENTER, then <b>START</b>. Your work is checked when you press START."
-          : "Menus are numbered: <b>press the number</b>. Pick the profile that matches the unit and the order type (continuous drip or intermittent dose). Your work is checked when you press <b>START</b>.")
+        ? (o.kind === "titrate" ? "The drip is running. Press <b>CHG DOSE</b>, type the new dose, ENTER, then <b>START</b>."
+          : "Menus are numbered: <b>press the number</b>. Select the mode, the syringe type, load the syringe, enter the settings, prime with <b>BOLUS</b> (press and hold), then <b>START</b>.")
         : DEV === "space"
         ? (o.kind === "titrate" ? "The drip is running. Press <b>◀</b>, dial the new doserate, press <b>OK</b>. Your work is checked when you confirm it."
           : o.kind === "secondary" ? "The primary is running. <b>Start/Stop</b> to stop it, ▼ to <b>SECondary</b> → New SECondary. Your work is checked when the SEC starts."

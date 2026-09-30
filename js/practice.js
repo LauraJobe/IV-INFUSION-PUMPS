@@ -385,15 +385,15 @@ const PRACTICE = (() => {
     const d = o.drug, prof = SYR_PROFILES[o.syrProfile], int = d.mode === "int";
     // Drips need the weight-based dose mode; intermittent doses need a dose mode
     // (dose/time or dose/kg) so the library can check the dose.
-    const modeOk = int ? e.pm === "dose" || e.pm === "dosekg" : e.pm === "dosekg";
-    const items = [
-      { label: "Profile", ok: e.profile === o.syrProfile, want: prof.name, got: SYR_PROFILES[e.profile] ? SYR_PROFILES[e.profile].name : "—" },
-      { label: "Drug program", ok: e.drugId === o.drugId, want: d.prog, got: SYR_DRUGS[e.drugId] ? SYR_DRUGS[e.drugId].prog : "—" },
-      { label: "Infusion mode", ok: modeOk, want: int ? "Dose/kg or Dose/time" : `Dose/kg/${d.dose.time === "min" ? "min" : "hr"}`, got: SYR_MODE_NAMES[e.pm] || "—" },
-    ];
-    if (!int || e.pm === "dosekg") items.push({ label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
-    const rows = int ? [["Dose", e.total, o.dose, d.dose.unit], ["Time", e.time, o.minutes, "min"]]
-      : [["Dose", e.pm === "dosekg" ? e.dose : null, o.dose, doseUnitLabel(d)]];
+    // Drips: weight-based dose mode. Intermittent doses: volume/time or a dose mode.
+    const modeOk = int ? ["voltime", "dose", "dosekg"].includes(e.pm) : e.pm === "dosekg";
+    const items = [{ label: "Infusion mode", ok: modeOk, want: int ? "Volume/time, Dose/time or Dose/kg" : `Dose/kg/${d.dose.time === "min" ? "min" : "hr"}`, got: SYR_MODE_NAMES[e.pm] || "—" }];
+    if (e.pm === "dose" || e.pm === "dosekg") items.push({ label: "Drug program", ok: e.drugId === o.drugId, want: d.prog, got: SYR_DRUGS[e.drugId] ? SYR_DRUGS[e.drugId].prog : "—" });
+    if (e.pm === "dosekg") items.push({ label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
+    if (o.syrSize) items.push({ label: "Syringe size", ok: e.syrSize === o.syrSize, want: `${o.syrSize} mL`, got: e.syrSize ? `${e.syrSize} mL` : "—" });
+    const rows = !int ? [["Dose", e.pm === "dosekg" ? e.dose : null, o.dose, doseUnitLabel(d)]]
+      : e.pm === "voltime" ? [["Volume", e.vtbi, o.vtbi, "mL"], ["Time", e.time, o.minutes, "min"]]
+      : [["Dose", e.total, o.dose, d.dose.unit], ["Time", e.time, o.minutes, "min"]];
     rows.push(["Rate", e.rate, o.rate, "mL/h"]);
     const all = items.concat(grade(rows).items);
     if (e.overrides) all.push({ label: "No soft-limit override needed", ok: false, want: "No override", got: "Overrode a soft limit" });
@@ -539,7 +539,7 @@ const PRACTICE = (() => {
     const dose = r2(perKg * p.weight);
     const vol = Math.round((dose / (c.amt / c.vol)) * 1000) / 1000;
     const rate = r2(vol / (minutes / 60));
-    if (rate < 0.1) return null;
+    if (rate < 0.1 || vol > 60) return null; // must fit in one syringe
     const u = d.dose.unit;
     return { spec: unit, kind: "primary", drugId, concIdx: 0, dose, perKgDose: perKg, rate, vtbi: vol, minutes, patient: p, perKg: true, syr: true, syrProfile: profFor(unit, "int", drugId),
       text: `<b>${d.name} ${fmtNum(dose, 3)} ${u}</b> (${fmtNum(perKg, 3)} ${u}/kg) IV over <b>${durText(minutes)}</b>. Syringe: ${d.prog.toLowerCase().replace(/ml/g, "mL")}.`,
@@ -553,6 +553,10 @@ const PRACTICE = (() => {
       o.patient.mrn = String(randInt(400000, 899999));
       o.patient.unit = o.spec;
       o.profile = o.syrProfile;
+      // The syringe pharmacy sends (smallest that holds the dose; drips come in 60 mL).
+      o.syrSize = o.kind === "titrate" ? null : o.vtbi ? [1, 3, 5, 10, 20, 30, 60].find((z) => z >= o.vtbi) || 60 : 60;
+      o.syrBrand = pick(["B-D", "Monoject", "Terumo"]);
+      if (o.syrSize) o.text += `<br><span class="policy">Pharmacy sent a <b>${o.syrBrand} ${o.syrSize} mL</b> syringe.</span>`;
       o.drug = SYR_DRUGS[o.drugId];
       o.conc = o.drug.concs[0];
       if (o.kind === "titrate") o.conc = o.drug.concs[0];
@@ -562,20 +566,22 @@ const PRACTICE = (() => {
   }
 
   function syrSteps(o) {
-    const d = o.drug, prof = SYR_PROFILES[o.syrProfile];
-    const cats = []; prof.drugs.forEach((id) => { const c = SYR_DRUGS[id].syrCat; if (!cats.includes(c)) cats.push(c); }); cats.sort();
-    const progs = prof.drugs.filter((id) => SYR_DRUGS[id].syrCat === d.syrCat);
-    const profN = Object.keys(SYR_PROFILES).indexOf(o.syrProfile) + 1;
+    const d = o.drug;
+    const cats = []; Object.values(SYR_DRUGS).forEach((x) => { if (!cats.includes(x.syrCat)) cats.push(x.syrCat); }); cats.sort();
+    const progs = Object.values(SYR_DRUGS).filter((x) => x.syrCat === d.syrCat).map((x) => x.id);
     const kgLabel = d.mode === "int" ? "DOSE/KG" : `DOSE/KG/${d.dose.time === "min" ? "MIN" : "HR"}`;
-    const pickIt = `Profile: press <b>${profN}</b> (${prof.name}) → Category: <b>${cats.indexOf(d.syrCat) + 1}</b> (${d.syrCat}) → Program: <b>${progs.indexOf(o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → ENTER (high-alert advisory)" : ""} → Mode: <b>4</b> (${kgLabel})`;
+    const lib = `Category <b>${cats.indexOf(d.syrCat) + 1}</b> (${d.syrCat}) → Program <b>${progs.indexOf(o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → ENTER (high-alert advisory)" : ""}`;
+    const brand = ["B-D", "Monoject", "Terumo"].indexOf(o.syrBrand) + 1;
+    const syr = o.syrSize ? `Syringe type <b>${brand}</b> (${(o.syrBrand || "").toUpperCase()}) → load the <b>${o.syrSize} mL</b> syringe (press ${[1, 3, 5, 10, 20, 30, 60].indexOf(o.syrSize) + 1})${o.syrSize <= 3 ? ` → confirm size <b>${o.syrSize} mL</b>` : " → size recognized: ENTER"}` : "";
+    const prime = "Prompt alternates START / BOLUS: press <b>BOLUS</b>, press and hold BOLUS until fluid reaches the end of the tubing, <b>EXIT</b> → press <b>START</b>";
     if (o.kind === "titrate") return ["Press the <b>CHG DOSE</b> soft key", `Type <b>${fmtNum(o.dose, 3)}</b> → ENTER (new rate ${fmtNum(o.rate, 2)} mL/h)`, "Press <b>START</b> to confirm the new dose"];
-    if (o.kind === "hold") return [pickIt, `WEIGHT ${o.patient.weight} → ENTER → DOSE ${fmtNum(o.dose, 3)} → ENTER: the pump shows the hard limit`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
-    const steps = [pickIt, `WEIGHT <b>${o.patient.weight}</b> → ENTER`, d.mode === "int"
-      ? `DOSE <b>${fmtNum(o.perKgDose, 3)}</b> ${d.dose.unit}/kg → ENTER (total ${fmtNum(o.dose, 3)} ${d.dose.unit}). Or use mode 3 DOSE/TIME and type the total ${fmtNum(o.dose, 3)} ${d.dose.unit}.`
-      : `DOSE <b>${fmtNum(o.dose, 3)}</b> → ENTER`];
-    if (d.mode === "int") steps.push(`TIME <b>${o.minutes >= 60 ? `${Math.floor(o.minutes / 60)}${String(o.minutes % 60).padStart(2, "0")}` : o.minutes}</b> (${durText(o.minutes)}) → ENTER`);
-    steps.push("LOAD SYRINGE: check the size → ENTER", "PRIME (or SKIP if already primed) → check the screen → press <b>START</b>");
-    return steps;
+    if (o.kind === "hold") return [`Mode <b>4</b> (DOSE/KG) → ${lib}`, syr, `WEIGHT ${o.patient.weight} → ENTER → DOSE ${fmtNum(o.dose, 3)} → ENTER: the pump shows the hard limit`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
+    if (d.mode === "int") return [
+      `Mode <b>2</b> (VOLUME/TIME) → ${syr}`,
+      `VOLUME <b>${fmtNum(o.vtbi, 3)}</b> mL (${fmtNum(o.dose, 3)} ${d.dose.unit} ÷ ${concPerMlLabel(o.conc)}) → ENTER → TIME <b>${o.minutes >= 60 ? `${Math.floor(o.minutes / 60)}${String(o.minutes % 60).padStart(2, "0")}` : o.minutes}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`,
+      `Or: mode <b>4</b> (DOSE/KG) → ${lib} → WEIGHT ${o.patient.weight} → DOSE ${fmtNum(o.perKgDose, 3)} ${d.dose.unit}/kg → TIME`,
+      prime, "When it finishes: <b>STOP</b> → flush the line if ordered"];
+    return [`Mode <b>4</b> (${kgLabel}) → ${lib}`, syr, `WEIGHT <b>${o.patient.weight}</b> → ENTER → DOSE <b>${fmtNum(o.dose, 3)}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`, prime];
   }
 
   return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps, syringeOrder, syrSteps };
