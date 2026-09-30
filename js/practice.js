@@ -320,7 +320,9 @@ const PRACTICE = (() => {
     } else if (o.kind === "titrate") {
       Object.assign(chA, { drugId: o.drugId, concIdx: o.concIdx, dose: o.fromDose, vtbi: o.conc.vol, remaining: Math.round(o.conc.vol * 0.7) });
     }
-    P.preset({ patientId: o.patient.mrn, profile: o.profile, weight: o.kind === "titrate" ? o.patient.weight : null, channels: [chA, chB],
+    // New starts begin at "New patient?" and the unit; running infusions stay mid-shift.
+    const fresh = !o.syr && (o.kind === "primary" || o.kind === "hold");
+    P.preset({ patientId: o.patient.mrn, profile: o.profile, weight: o.kind === "titrate" ? o.patient.weight : null, channels: [chA, chB], fresh,
       syringe: o.syrSize ? { brand: o.syrBrand.toUpperCase(), size: o.syrSize } : null });
   }
 
@@ -370,6 +372,7 @@ const PRACTICE = (() => {
       // No dose on a rate-only order: the drug name is optional, but must not be the wrong drug.
       if (e.drugId && e.drugId !== o.drugId) items.push({ label: "Drug name", ok: false, want: d.name, got: dn(e.drugId) });
     } else items.push({ label: "Guardrails entry", ok: e.mode === "guardrails" && e.drugId === o.drugId, want: d.name, got: e.mode === "basic" ? "Basic Infusion (no limits)" : dn(e.drugId) });
+    if (e.type === "start" && e.profile !== undefined && PROFILES[o.profile]) items.push({ label: "Unit (profile)", ok: e.profile === o.profile, want: PROFILES[o.profile].name, got: PROFILES[e.profile] ? PROFILES[e.profile].name : "—" });
     if ((plum ? !!d.dose : d.concs.length > 1) && o.conc.amt) items.push({ label: "Concentration", ok: e.drugId === o.drugId && e.concVol === o.conc.vol && (e.concAmt == null ? !plum : Math.abs(e.concAmt - o.conc.amt) < 1e-6), want: concLabel(d, o.conc), got: e.concVol ? `${e.concAmt != null ? fmtNum(e.concAmt, 3) + " " + o.conc.unit + " / " : ""}${e.concVol} mL` : "—" });
     if (o.perKg) items.push({ label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
     const rows = [];
@@ -451,16 +454,17 @@ const PRACTICE = (() => {
     const d = o.drug, c = o.conc;
     const startIt = "Check Rate, VTBI and Duration against the order → press <b>START</b>";
     if (o.kind === "titrate") return ["Press the <b>[A]</b> soft key (Dose is highlighted)", `Type <b>${fmtNum(o.dose, 3)}</b> (rate becomes ${fmtNum(o.rate, 1)} mL/hr)`, "Press <b>START</b> to accept the new dose"];
-    if (o.kind === "secondary") return ["With Line A pumping, press the <b>[B]</b> soft key. Mode must read <b>Piggyback</b> (use Change Mode if it says Concurrent)",
-      `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b> (Duration fills in as ${durText(o.minutes)})`, "Optional: Program Options → Drug List → " + d.name + " → Enter → Enter", "Press <b>START</b>. Line A shows DELAYED and restarts by itself when B finishes"];
+    const pickDrug = (key) => `Press <b>[${key}]</b> → drug list: <b>${d.generic || d.name}</b> (SELECT ▲▼, Page Down, or letters on the number keys: 1 = ABC …) → <b>Enter</b>`;
+    if (o.kind === "secondary") return ["With Line A pumping, " + pickDrug("B").charAt(0).toLowerCase() + pickDrug("B").slice(1), "The program screen shows <b>Mode Piggyback</b> (use Change Mode if it says Concurrent)",
+      `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b> (Duration fills in as ${durText(o.minutes)})`, "Press <b>START</b>. Line A shows DELAYED and restarts by itself when B finishes"];
     if (d.dose && o.dose != null) {
-      return ["Press <b>[A]</b> → <b>Therapy</b> → Drug List: highlight <b>" + (d.generic || d.name) + "</b> (▲▼ or Page Down) → <b>Enter</b>",
-        `<b>Dose Calculation</b> → Choose → dose units <b>${plumUnit(d)}</b> → Choose → container units <b>${plumConcUnit(c.unit)}</b> → Choose`,
+      return [pickDrug("A"),
+        `Dose units <b>${plumUnit(d)}</b> → Choose → container units <b>${plumConcUnit(c.unit)}</b> → Choose`,
         `Conc <b>${fmtNum(c.amt, 3)}</b> ${plumConcUnit(c.unit)} → ▼ → <b>${fmtNum(c.vol)}</b> mL${o.perKg ? ` → ▼ → Weight <b>${o.patient.weight}</b> kg` : ""}`,
         `▼ → Dose <b>${fmtNum(o.dose, 3)}</b> → ▼ → VTBI <b>${fmtNum(o.vtbi)}</b> (rate ${fmtNum(o.rate, 1)} mL/hr)`,
         "Press <b>START</b> → Confirm Program? <b>Yes</b>"];
     }
-    return ["Press the <b>[A]</b> soft key (Rate is highlighted)", `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b>`, startIt];
+    return [pickDrug("A"), `Rate <b>${fmtNum(o.rate, 1)}</b> → <b>▼</b> → VTBI <b>${fmtNum(o.vtbi)}</b>`, startIt];
   }
 
   // Steps for the compact arrow-key pump (space.js).
@@ -473,8 +477,8 @@ const PRACTICE = (() => {
     if (o.kind === "titrate") return ["On the run screen press <b>◀</b> (Doserate editor opens)", `${dial(o.dose)}. The new doserate starts when you press OK (rate ${fmtNum(o.rate, 1)} ml/h)`];
     if (o.kind === "secondary") return ["<b>Start/Stop</b> to stop the primary → ▼ to <b>SECondary</b> → OK → <b>New SECondary</b> → OK", find,
       `VTBI shows ${fmtNum(o.vtbi)} ml (the bag): OK → OK`, `▼ to <b>Time</b> → OK → dial <b>${spHm(o.minutes)}</b> → OK (rate ${fmtNum(o.rate, 1)} ml/h)`, "<b>Start/Stop</b> → check bag height, open SEC clamp → <b>Start/Stop</b>"];
-    if (o.kind === "hold") return ["OK → " + find, `${o.perKg ? `Weight: ${dial(o.patient.weight)}, then ` : ""}dial toward ${fmtNum(o.dose, 3)}: the editor stops at the hard limit and ▲ again shows the hard-limit message`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
-    const steps = ["Press <b>OK</b> (care unit is already set) → " + find];
+    if (o.kind === "hold") return [`OK → Care Unit <b>${PROFILES[o.profile].name.replace("Adult ", "")}</b> → OK → ` + find, `${o.perKg ? `Weight: ${dial(o.patient.weight)}, then ` : ""}dial toward ${fmtNum(o.dose, 3)}: the editor stops at the hard limit and ▲ again shows the hard-limit message`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
+    const steps = [`Press <b>OK</b> → Care Unit <b>${PROFILES[o.profile].name.replace("Adult ", "")}</b> → OK → ` + find];
     if (d.dose && o.dose != null) {
       if (o.perKg) steps.push(`Weight editor: ${dial(o.patient.weight)}`, "OK to open Doserate");
       steps.push(`Doserate: ${dial(o.dose)} (rate ${fmtNum(o.rate, 1)} ml/h)`);

@@ -562,6 +562,7 @@ const Spectrum = (() => {
     } else {
       S.letters = ""; S.screen = { id: "drugSearch" };
     }
+    if (cfg.fresh) { S.profile = null; S.weight = null; S.screen = { id: "newPatient" }; }
     emit();
   }
 
