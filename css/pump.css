@@ -839,3 +839,4 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .sys-entry .in { grid-area: in; display: flex; align-items: center; gap: 6px; }
 .sys-entry .in b { flex: 1; border: 2px solid #1b2a17; padding: 2px 6px; font-size: 20px; text-align: right; min-height: 30px; background: rgba(255, 255, 255, .15); }
 .sys-entry .cur { grid-column: 1 / -1; font-size: 10.5px; }
+.sys-msg .sy-warn { margin-top: 6px; background: #1b2a17; color: #a9da96; font-size: 11px; padding: 2px 4px; animation: blink 1s steps(2) infinite; }

@@ -363,7 +363,7 @@ const Syringe = (() => {
     const d = S.draft, c = ch();
     const finite = isInt(d) || d.pm === "voltime";
     const prog = { mode: "guardrails", pm: d.pm, drugId: d.drugId, drug: d.drug, conc: d.drug ? concOf(d) : null, dose: d.dose, rate: d.rate, vtbi: d.vtbi, time: d.time,
-      remaining: finite ? d.vtbi : d.syrSize || 50, given: 0, weight: d.weight, blood: d.blood, overrides: d.overrides.slice(), syrType: d.syrType, syrSize: d.syrSize, int: finite, flushable: finite };
+      remaining: finite ? d.vtbi : d.drug ? Math.min(concOf(d).vol, d.syrSize || 60) : d.syrSize || 50, given: 0, weight: d.weight, blood: d.blood, overrides: d.overrides.slice(), syrType: d.syrType, syrSize: d.syrSize, int: finite, flushable: finite };
     c.primary = prog; c.state = "running"; c.alarm = null;
     lastSettings = { pm: d.pm, drugId: d.drugId, blood: d.blood, weight: d.weight, dose: d.dose, time: d.time, rate: d.rate, vtbi: d.vtbi };
     log("start", { ch: "A", drugId: d.drugId, profile: S.profile, blood: d.blood, mode: isDoseMode(d) ? "guardrails" : "basic", pm: d.pm, syrType: d.syrType, syrSize: d.syrSize, loadedSize: d.loadedSize,
@@ -506,11 +506,11 @@ const Syringe = (() => {
       case "advisory": return Object.assign(base, { title: d.drug.prog, msg: "HIGH ALERT MEDICATION<br>INDEPENDENT DOUBLE CHECK", prompt: "PRESS CONFIRM TO CONTINUE", soft: [null, null, null, K("CONFIRM", toBrands)] });
       case "brand": return Object.assign(base, { title: titleOf(d) }, menuSpec("SELECT SYRINGE TYPE - PRESS THE NUMBER"));
       case "load": return Object.assign(base, { title: `LOAD ${d.syrType} SYRINGE`, msg: "LIFT THE BARREL CLAMP, SEAT THE FLANGE,<br>ADVANCE THE PLUNGER DRIVER, LOWER THE CLAMP", prompt: "LOAD THE SYRINGE", soft: [null, null, null, K("LOAD SYRINGE", loadSyringe)] });
-      case "recognized": return Object.assign(base, { title: titleOf(d), msg: `SYRINGE RECOGNIZED<br><b class="sy-size">${d.syrType} ${sc.size} ML</b>`, prompt: "VERIFY SYRINGE MODEL AND SIZE", soft: [null, null, null, K("CONFIRM", () => { d.syrSize = sc.size; log("syringeSize", { ch: "A", size: sc.size, loaded: sc.size }); toParams(); })] });
+      case "recognized": return Object.assign(base, { title: titleOf(d), msg: `SYRINGE RECOGNIZED<br><b class="sy-size">${d.syrType} ${sc.size} ML</b>${typeWarn()}`, prompt: "VERIFY SYRINGE MODEL AND SIZE", soft: [null, null, K("CHG TYPE", chgType), K("CONFIRM", () => { d.syrSize = sc.size; log("syringeSize", { ch: "A", size: sc.size, loaded: sc.size }); toParams(); })] });
       case "confirmSize": {
         const pick = (n) => () => { sc.pick = n; emit(); };
-        return Object.assign(base, { title: `${d.syrType} SYRINGE`, msg: `CONFIRM SYRINGE SIZE<br><b class="sy-size">${sc.pick ? `${sc.pick} ML` : "1 ML OR 3 ML?"}</b>`, prompt: sc.pick ? "PRESS CONFIRM" : "SELECT THE SIZE LOADED",
-          soft: [K(sc.pick === 1 ? "[1 ML]" : "1 ML", pick(1)), K(sc.pick === 3 ? "[3 ML]" : "3 ML", pick(3)), null,
+        return Object.assign(base, { title: `${d.syrType} SYRINGE`, msg: `CONFIRM ${d.syrType} SYRINGE SIZE<br><b class="sy-size">${sc.pick ? `${sc.pick} ML` : "1 ML OR 3 ML?"}</b>${typeWarn()}`, prompt: sc.pick ? "PRESS CONFIRM" : "SELECT THE SIZE LOADED",
+          soft: [K(sc.pick === 1 ? "[1 ML]" : "1 ML", pick(1)), K(sc.pick === 3 ? "[3 ML]" : "3 ML", pick(3)), K("CHG TYPE", chgType),
             sc.pick ? K("CONFIRM", () => { d.syrSize = sc.pick; log("syringeSize", { ch: "A", size: sc.pick, loaded: d.loadedSize }); toParams(); }) : null] });
       }
       case "entry": return Object.assign(base, entrySpec(d));
@@ -536,6 +536,14 @@ const Syringe = (() => {
     }
     return base;
   }
+
+  // The pump shows the type the nurse picked; the sim points out when it is not
+  // the syringe that was loaded (the nurse's check on the real pump).
+  function typeWarn() {
+    const sy = S.syringe, d = S.draft;
+    return sy && d && d.syrType && sy.brand !== d.syrType ? `<div class="sy-warn">CHECK: THE SYRINGE LOADED IS ${sy.brand} ${sy.size} ML</div>` : "";
+  }
+  function chgType() { S.loaded = false; toBrands(); }
 
   function options() { flash("OPTIONS ARE NOT USED IN PRACTICE"); emit(); }
 
@@ -591,9 +599,9 @@ const Syringe = (() => {
       const drug = SYR_DRUGS[a.drugId], conc = drug.concs[0];
       S.profile = cfg.profile; S.weight = cfg.weight;
       const rate = r2(doseToRate(drug, conc, a.dose, S.weight));
-      ch().primary = { mode: "guardrails", pm: "dosekg", drugId: a.drugId, drug, conc, dose: a.dose, rate, vtbi: 50, remaining: 30, given: 20, weight: S.weight, overrides: [], syrType: "B-D", syrSize: 60, int: false };
+      ch().primary = { mode: "guardrails", pm: "dosekg", drugId: a.drugId, drug, conc, dose: a.dose, rate, vtbi: conc.vol, remaining: conc.vol * 0.6, given: conc.vol * 0.4, weight: S.weight, overrides: [], syrType: "B-D", syrSize: conc.vol <= 20 ? 20 : 60, int: false };
       ch().state = "running";
-      S.syringe = { brand: "B-D", size: 60 }; S.loaded = true; S.fixedSyringe = true;
+      S.syringe = { brand: "B-D", size: conc.vol <= 20 ? 20 : 60 }; S.loaded = true; S.fixedSyringe = true;
       S.screen = { id: "run" };
     } else S.screen = { id: "profile", list: profileList(), page: 0 };
     emit();

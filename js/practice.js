@@ -494,12 +494,14 @@ const PRACTICE = (() => {
     syr_fentanyl: [0.5, 1, 1.5, 2], syr_morphine: [10, 20, 30], syr_midazolam: [0.05, 0.1, 0.15], syr_dexmed: [0.3, 0.5, 0.8],
     syr_dobutamine: [5, 7.5, 10], syr_dopamine: [5, 7.5, 10], syr_epinephrine: [0.05, 0.1, 0.2], syr_milrinone: [0.25, 0.5, 0.75],
     syr_insulin: [0.05, 0.1], syr_heparin: [10, 15, 20],
+    syr_fentanyl_n: [0.5, 1, 1.5, 2], syr_morphine_n: [10, 15, 20], syr_dobutamine_n: [5, 7.5, 10], syr_dopamine_n: [5, 7.5, 10],
+    syr_epinephrine_n: [0.05, 0.1], syr_insulin_n: [0.02, 0.05],
   };
   const SYR_INT = {
     syr_ampicillin: [[25, 50, 100], [15, 30]], syr_cefoxitin: [[30, 40], [30]], syr_vancomycin: [[10, 15], [60]], syr_gentamicin: [[4, 5], [30]],
     syr_acyclovir: [[10, 20], [60]], syr_calcium: [[50, 100], [30, 60]], syr_kcl: [[0.5, 1], [60, 120]],
   };
-  const SYR_HOLD = { syr_fentanyl: [6, 8], syr_dopamine: [25, 30], syr_milrinone: [1.5, 2], syr_heparin: [50, 60] };
+  const SYR_HOLD = { syr_fentanyl: [6, 8], syr_dopamine: [25, 30], syr_milrinone: [1.5, 2], syr_heparin: [50, 60], syr_fentanyl_n: [6, 8], syr_dopamine_n: [25, 30] };
 
   function syrPatient(unit) {
     if (unit === "NICU") {
@@ -564,7 +566,7 @@ const PRACTICE = (() => {
       o.profile = o.syrProfile;
       // The syringe from pharmacy: a random size that holds the dose (drips: 20-60 mL)
       // and a random brand. Students read both off the syringe on the pump.
-      const fits = [1, 3, 5, 10, 20, 30, 60].filter((z) => z >= (o.vtbi || 20));
+      const fits = [1, 3, 5, 10, 20, 30, 60].filter((z) => z >= (o.vtbi || SYR_DRUGS[o.drugId].concs[0].vol));
       o.syrSize = o.kind === "titrate" ? null : pick(fits.slice(0, 3));
       o.syrBrand = pick(["B-D", "Monoject", "Terumo"]);
       o.drug = SYR_DRUGS[o.drugId];
