@@ -450,15 +450,25 @@
     $("#syLedR").className = "led" + (S.on && c.alarm ? " alarm" : "");
     $$("#syOcc i").forEach((i, n) => i.classList.toggle("on", running && n === 0));
     const dev = $("#syr");
-    const fill = p ? Math.max(4, Math.min(100, (p.remaining / (p.int ? Math.max(p.vtbi, 0.1) : 50)) * 70)) : 70;
+    // The syringe at the bedside: size and brand printed on the barrel; bigger syringes draw bigger.
+    const sy = S.syringe;
+    const cap = p && p.syrSize ? p.syrSize : sy ? sy.size : 60;
+    const fill = p ? Math.max(4, Math.min(100, (p.remaining / Math.max(cap, 0.1)) * 90)) : 90;
     dev.style.setProperty("--fill", fill.toFixed(1));
+    const scale = { 1: 0.45, 3: 0.55, 5: 0.65, 10: 0.75, 20: 0.85, 30: 0.92, 60: 1 }[sy ? sy.size : 60] || 1;
+    dev.style.setProperty("--syr", scale);
+    $(".sy-syringe").classList.toggle("none", !sy);
+    $(".sy-syringe").classList.toggle("out", !!sy && !S.loaded);
+    setHTML($(".sy-label"), sy ? `${sy.brand} ${sy.size} mL` : "");
+    setHTML($(".sy-load"), !sy ? "NO SYRINGE" : S.loaded ? "SYRINGE LOADED" : "SYRINGE READY TO LOAD");
     scr.className = "sy-screen" + (!S.on || spec.off ? " off" : "");
     if (!S.on || spec.off) { setHTML(scr, ""); return; }
     if (spec.boot) { setHTML(scr, `<div class="sys-boot"><b>SYRINGE PUMP</b><span>SELF TEST IN PROGRESS</span><span style="font-size:11px">DO NOT MOVE THE PLUNGER DRIVER</span></div>`); return; }
-    const top = `<div class="sys-top"><span class="t">${spec.title}</span><span class="u">${spec.unit || ""}${spec.running ? `<span class="run go"> ▶▶</span>` : ""}</span></div>`;
+    const top = `<div class="sys-top"><span class="t">${spec.title}</span><span class="u">${spec.unit || ""}${spec.running ? `<span class="run go"> ◀◀</span>` : ""}</span></div>`;
     let body = "";
     if (spec.alarm) body += `<div class="sys-alarm">${spec.alarm.msg}</div>`;
-    if (spec.menu) body += `<div class="sys-menu">${spec.menu.map((m) => `<span><b>${m.n}</b>${m.label}</span>`).join("")}</div>${spec.page ? `<div style="text-align:right;font-size:10px">${spec.page}</div>` : ""}`;
+    // Numbers run top to bottom, left column first.
+    if (spec.menu) body += `<div class="sys-menu" style="grid-template-rows:repeat(${Math.max(1, Math.ceil(spec.menu.length / 2))},auto)">${spec.menu.map((m) => `<span><b>${m.n}</b>${m.label}</span>`).join("")}</div>${spec.page ? `<div style="text-align:right;font-size:10px">${spec.page}</div>` : ""}`;
     if (spec.rows) body += `<div class="sys-rows">${spec.rows.map((r) => `<div class="${r.big ? "big" : ""}${r.on ? " on" : ""}${r.rev ? " rev" : ""}"><span>${r.k}</span><b>${r.v}</b></div>`).join("")}</div>`;
     if (spec.msg) body += `<div class="sys-msg">${spec.msg}</div>`;
     if (S.flash) body += `<div class="sys-flash">${S.flash.text}</div>`;

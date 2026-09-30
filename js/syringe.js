@@ -36,6 +36,7 @@ const Syringe = (() => {
       channels: { A: newChannel("A"), B: newChannel("B") },
       screen: { id: "off" }, spec: null, buffer: "", draft: null,
       primeVol: 0, bolusDownAt: null,
+      syringe: null, loaded: false, // the syringe at the bedside (brand and size printed on it)
       silencedUntil: 0, flash: null, log: [],
     };
     emit();
@@ -140,7 +141,16 @@ const Syringe = (() => {
   const programList = (cat) => Object.values(SYR_DRUGS).filter((d) => d.syrCat === cat).map((d) => ({ label: d.prog, drug: d }));
   const toModes = () => go("mode", { list: modeList(), page: 0 });
   const toBrands = () => go("brand", { list: BRANDS.map((b) => ({ label: b, brand: b })), page: 0 });
-  const toLoad = () => go("load", { list: SIZES.map((sz) => ({ label: `${sz} ML SYRINGE`, size: sz })), page: 0 });
+  const randomSyringe = () => ({ brand: BRANDS[Math.floor(Math.random() * BRANDS.length)], size: SIZES[Math.floor(Math.random() * SIZES.length)] });
+  const toLoad = () => { if (!S.syringe) S.syringe = randomSyringe(); go("load"); };
+  // Load the syringe: the pump reads the size from 5 mL up; 1 and 3 mL must be confirmed.
+  function loadSyringe() {
+    const d = S.draft, sy = S.syringe;
+    S.loaded = true; d.loadedSize = sy.size;
+    log("bedside", { ch: "A", action: "load", size: sy.size, brand: sy.brand });
+    if (sy.size <= 3) return go("confirmSize", { pick: null });
+    go("recognized", { size: sy.size });
+  }
   const toProgram = (cat) => go("program", { list: programList(cat), page: 0, cat });
 
   function pickNumber(n) {
@@ -168,14 +178,7 @@ const Syringe = (() => {
       return toBrands();
     }
     if (sc.id === "brand") { S.draft.syrType = it.brand; log("syringeType", { ch: "A", brand: it.brand }); return toLoad(); }
-    if (sc.id === "load") {
-      S.draft.loadedSize = it.size;
-      log("bedside", { ch: "A", action: "load", size: it.size });
-      // Small syringes look alike to the pump: the nurse confirms 1 vs 3 mL.
-      if (it.size <= 3) return go("confirmSize", { list: [{ label: "1 ML", size: 1 }, { label: "3 ML", size: 3 }], page: 0 });
-      return go("recognized", { size: it.size });
-    }
-    if (sc.id === "confirmSize") { S.draft.syrSize = it.size; log("syringeSize", { ch: "A", size: it.size, loaded: S.draft.loadedSize }); return toParams(); }
+
   }
 
   function toParams() {
@@ -213,8 +216,7 @@ const Syringe = (() => {
     if (k === "START") return startKey();
     if (k === "BACK") return back();
     if (/^[0-9]$/.test(k) && sc.list) { if (+k >= 1) pickNumber(+k); return; }
-    if (sc.id === "advisory") { if (k === "ENTER") toBrands(); return; }
-    if (sc.id === "recognized") { if (k === "ENTER") { S.draft.syrSize = sc.size; log("syringeSize", { ch: "A", size: sc.size, loaded: sc.size }); toParams(); } return; }
+
     if (sc.id === "params" || sc.id === "chgDose" || sc.id === "flushSet") {
       if (/^[0-9.]$/.test(k)) {
         const f = sc.id === "chgDose" ? "dose" : sc.id === "flushSet" ? "vtbi" : S.draft.field;
@@ -255,7 +257,7 @@ const Syringe = (() => {
     if (sc.id === "advisory") return toProgram(d.drug.syrCat);
     if (sc.id === "brand") return isDoseMode(d) && d.drug ? toProgram(d.drug.syrCat) : toModes();
     if (sc.id === "load") return toBrands();
-    if (["recognized", "confirmSize"].includes(sc.id)) return toLoad();
+    if (["recognized", "confirmSize"].includes(sc.id)) { S.loaded = false; return toLoad(); }
     if (sc.id === "params") { const i = fields(d).indexOf(d.field); if (i > 0) { d.field = fields(d)[i - 1]; return emit(); } return toLoad(); }
     if (sc.id === "ready") { d.recalled = false; d.field = fields(d).slice(-1)[0]; return go("params"); }
     if (sc.id === "prime") return exitPrime();
@@ -342,8 +344,10 @@ const Syringe = (() => {
     c.alarm = null;
     if (p && p.flushable) return go("flushAsk");
     c.state = "idle"; c.primary = null;
-    toModes();
+    newSyringe(); toModes();
   }
+  // After an infusion the next program uses a new syringe (practice: random).
+  function newSyringe() { if (!S.fixedSyringe) { S.syringe = null; S.loaded = false; } }
   function enterFlush() {
     if (S.buffer === "") return;
     const v = parseFloat(S.buffer);
@@ -427,11 +431,16 @@ const Syringe = (() => {
       case "mode": return Object.assign(base, { title: "SELECT MODE" }, menuSpec("PRESS THE NUMBER TO SELECT"));
       case "category": return Object.assign(base, { title: `${modeLabel(d)} · DRUG LIBRARY` }, menuSpec("SELECT CATEGORY - PRESS THE NUMBER", K("CHG MODE", toModes)));
       case "program": return Object.assign(base, { title: sc.cat }, menuSpec("SELECT DRUG PROGRAM - PRESS THE NUMBER", K("CHG MODE", toModes)));
-      case "advisory": return Object.assign(base, { title: d.drug.prog, msg: "HIGH ALERT MEDICATION<br>INDEPENDENT DOUBLE CHECK", prompt: "PRESS ENTER TO CONTINUE" });
+      case "advisory": return Object.assign(base, { title: d.drug.prog, msg: "HIGH ALERT MEDICATION<br>INDEPENDENT DOUBLE CHECK", prompt: "PRESS CONFIRM TO CONTINUE", soft: [null, null, null, K("CONFIRM", toBrands)] });
       case "brand": return Object.assign(base, { title: titleOf(d) }, menuSpec("SELECT SYRINGE TYPE - PRESS THE NUMBER"));
-      case "load": return Object.assign(base, { title: `LOAD ${d.syrType} SYRINGE` }, menuSpec("LOAD THE SYRINGE - PRESS THE NUMBER OF THE SIZE LOADED"));
-      case "recognized": return Object.assign(base, { title: titleOf(d), msg: `SYRINGE RECOGNIZED<br><b class="sy-size">${d.syrType} ${sc.size} ML</b>`, prompt: "VERIFY SYRINGE MODEL AND SIZE - PRESS ENTER" });
-      case "confirmSize": return Object.assign(base, { title: `${d.syrType} SYRINGE - CONFIRM SIZE` }, menuSpec("SMALL SYRINGE: PRESS THE NUMBER OF THE SIZE LOADED"));
+      case "load": return Object.assign(base, { title: `LOAD ${d.syrType} SYRINGE`, msg: "LIFT THE BARREL CLAMP, SEAT THE FLANGE,<br>ADVANCE THE PLUNGER DRIVER, LOWER THE CLAMP", prompt: "LOAD THE SYRINGE", soft: [null, null, null, K("LOAD SYRINGE", loadSyringe)] });
+      case "recognized": return Object.assign(base, { title: titleOf(d), msg: `SYRINGE RECOGNIZED<br><b class="sy-size">${d.syrType} ${sc.size} ML</b>`, prompt: "VERIFY SYRINGE MODEL AND SIZE", soft: [null, null, null, K("CONFIRM", () => { d.syrSize = sc.size; log("syringeSize", { ch: "A", size: sc.size, loaded: sc.size }); toParams(); })] });
+      case "confirmSize": {
+        const pick = (n) => () => { sc.pick = n; emit(); };
+        return Object.assign(base, { title: `${d.syrType} SYRINGE`, msg: `CONFIRM SYRINGE SIZE<br><b class="sy-size">${sc.pick ? `${sc.pick} ML` : "1 ML OR 3 ML?"}</b>`, prompt: sc.pick ? "PRESS CONFIRM" : "SELECT THE SIZE LOADED",
+          soft: [K(sc.pick === 1 ? "[1 ML]" : "1 ML", pick(1)), K(sc.pick === 3 ? "[3 ML]" : "3 ML", pick(3)), null,
+            sc.pick ? K("CONFIRM", () => { d.syrSize = sc.pick; log("syringeSize", { ch: "A", size: sc.pick, loaded: d.loadedSize }); toParams(); }) : null] });
+      }
       case "params": {
         const f = d.field;
         const ask = { weight: "ENTER WEIGHT (KG)", dose: `ENTER DOSE (${doseUnit(d)})`, time: "ENTER TIME (30 = 30 MIN, 100 = 1 HR)", rate: "ENTER RATE (ML/HR)", vtbi: "ENTER VOLUME (ML)" }[f];
@@ -508,6 +517,7 @@ const Syringe = (() => {
   function preset(cfg) {
     reset();
     S.on = true; S.patientId = cfg.patientId || null;
+    if (cfg.syringe) { S.syringe = Object.assign({}, cfg.syringe); S.fixedSyringe = true; }
     const a = (cfg.channels || []).find((x) => x.ch === "A");
     if (a && a.drugId && SYR_DRUGS[a.drugId]) {
       const drug = SYR_DRUGS[a.drugId], conc = drug.concs[0];
@@ -515,6 +525,7 @@ const Syringe = (() => {
       const rate = r2(doseToRate(drug, conc, a.dose, S.weight));
       ch().primary = { mode: "guardrails", pm: "dosekg", drugId: a.drugId, drug, conc, dose: a.dose, rate, vtbi: 50, remaining: 30, given: 20, weight: S.weight, overrides: [], syrType: "B-D", syrSize: 60, int: false };
       ch().state = "running";
+      S.syringe = { brand: "B-D", size: 60 }; S.loaded = true; S.fixedSyringe = true;
       S.screen = { id: "run" };
     } else S.screen = { id: "mode", list: modeList(), page: 0 };
     emit();
