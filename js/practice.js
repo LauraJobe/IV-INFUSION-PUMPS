@@ -444,7 +444,8 @@ const PRACTICE = (() => {
   const spHm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
   function spaceSteps(o) {
     const d = o.drug, c = o.conc;
-    const find = `▲▼ to <b>${d.name}</b> (▶ jumps ABC → DEF …) → OK${d.concs.length > 1 ? ` → <b>${concLabel(d, c)}</b> → OK` : ""}${d.highAlert ? " → advisory: OK" : ""}`;
+    const cat = drugCategory(d);
+    const find = `<b>${cat.top}</b> → OK${cat.sub ? ` → <b>${cat.sub}</b> → OK` : ""} → ▲▼ to <b>${d.name}</b> (▶ jumps ABC → DEF …) → OK${d.concs.length > 1 ? ` → <b>${concLabel(d, c)}</b> → OK` : ""}${d.highAlert ? " → advisory: OK" : ""}`;
     if (o.kind === "titrate") return ["On the run screen press <b>◀</b> (Doserate editor opens)", `${dial(o.dose)}. The new doserate starts when you press OK (rate ${fmtNum(o.rate, 1)} ml/h)`];
     if (o.kind === "secondary") return ["<b>Start/Stop</b> to stop the primary → ▼ to <b>SECondary</b> → OK → <b>New SECondary</b> → OK", find,
       `VTBI shows ${fmtNum(o.vtbi)} ml (the bag): OK → OK`, `▼ to <b>Time</b> → OK → dial <b>${spHm(o.minutes)}</b> → OK (rate ${fmtNum(o.rate, 1)} ml/h)`, "<b>Start/Stop</b> → check bag height, open SEC clamp → <b>Start/Stop</b>"];

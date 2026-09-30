@@ -337,6 +337,21 @@ function profileDrugList(profileId) {
     .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 }
 
+// Drug categories used by pumps that ask "IV Fluids or Medications?" first.
+const MED_GROUPS = [
+  ["Antibiotics", /Antibiotic/],
+  ["Heart & Blood Pressure", /Vasopressor|Inotrope|Vasodilator|Calcium channel|Antiarrhythmic|Beta blocker/],
+  ["Sedation & Pain", /Sedative|Opioid|Benzodiazepine/],
+  ["Electrolytes", /Electrolyte/],
+  ["Anticoagulants & Insulin", /Anticoagulant|Antidiabetic/],
+  ["OB / Labor & Delivery", /Uterotonic|\(OB\)|Antifibrinolytic/],
+];
+function drugCategory(drug) {
+  if (/fluid|Blood product|bolus/i.test(drug.cls)) return { top: "IV Fluids", sub: null };
+  const g = MED_GROUPS.find(([, re]) => re.test(drug.cls));
+  return { top: "Medications", sub: g ? g[0] : "Other medications" };
+}
+
 function doseUnitLabel(drug) {
   if (!drug || !drug.dose) return "mL/h";
   const d = drug.dose;

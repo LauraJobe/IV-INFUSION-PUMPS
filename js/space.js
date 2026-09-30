@@ -393,7 +393,9 @@ const Space = (() => {
 
   function listBack(sc) {
     if (sc.id === "careUnit") return go("landing");
-    if (sc.id === "drugList") { if (sc.secondary) return go("secMenu", { cur: 0, list: secMenuList() }); return toCareUnit(); }
+    if (sc.id === "drugList") return sc.back === "subcat" ? toSubcat(sc.secondary) : toDrugs(sc.secondary);
+    if (sc.id === "subcat") return toDrugs(sc.secondary);
+    if (sc.id === "category") { if (sc.secondary) return go("secMenu", { cur: 0, list: secMenuList() }); return toCareUnit(); }
     if (sc.id === "concList") return toDrugs(sc.secondary);
     if (sc.id === "secMenu") { S.draft = draftFrom(ch().primary, false); return go("home"); }
     if (sc.id === "prevSec") return go("secMenu", { cur: 0, list: secMenuList() });
@@ -406,6 +408,12 @@ const Space = (() => {
       S.profile = it.pid; log("profile", { profile: it.pid });
       return toDrugs(false);
     }
+    if (sc.id === "category") {
+      if (it.basic) return basicInfusion(sc.secondary);
+      if (it.key === "fluids") return toDrugList(sc.secondary, (d) => drugCategory(d).top === "IV Fluids", "category");
+      return toSubcat(sc.secondary);
+    }
+    if (sc.id === "subcat") return toDrugList(sc.secondary, (d) => drugCategory(d).top === "Medications" && (it.sub === "*" || drugCategory(d).sub === it.sub), "subcat");
     if (sc.id === "drugList") {
       if (it.basic) return basicInfusion(sc.secondary);
       const drug = it.drug;
@@ -431,8 +439,17 @@ const Space = (() => {
     go("careUnit", { list: pids.map((pid) => ({ label: PROFILES[pid].name.replace("Adult ", ""), pid })).concat([{ label: "Basic infusion", basic: true }]), cur: Math.max(0, pids.indexOf(S.profile)) });
   }
 
+  // Category first (IV Fluids or Medications), then the medication type.
   function toDrugs(secondary) {
-    const drugs = profileDrugList(S.profile);
+    go("category", { list: [{ label: "IV Fluids", key: "fluids" }, { label: "Medications", key: "meds" }, { label: "Basic infusion", basic: true }], cur: secondary ? 1 : 0, secondary });
+  }
+  function toSubcat(secondary) {
+    const drugs = profileDrugList(S.profile).filter((d) => drugCategory(d).top === "Medications");
+    const subs = MED_GROUPS.map(([name]) => name).concat(["Other medications"]).filter((n) => drugs.some((d) => drugCategory(d).sub === n));
+    go("subcat", { list: subs.map((n) => ({ label: n, sub: n })).concat([{ label: "All medications", sub: "*" }]), cur: 0, secondary });
+  }
+  function toDrugList(secondary, filter, back) {
+    const drugs = profileDrugList(S.profile).filter(filter);
     const list = [];
     GROUPS.forEach((g) => {
       const inG = drugs.filter((d) => g.includes(d.name.replace(/[^A-Za-z]/g, "")[0].toUpperCase()));
@@ -441,7 +458,7 @@ const Space = (() => {
       inG.forEach((d) => list.push({ label: d.name, drug: d }));
     });
     list.push({ label: "Basic infusion", basic: true });
-    go("drugList", { list, cur: 1, secondary });
+    go("drugList", { list, cur: 1, secondary, back });
   }
 
   function chosen(drug, conc, secondary) {
@@ -478,6 +495,8 @@ const Space = (() => {
       case "landing": return Object.assign(base, { landing: true, lines: [{ text: "Press OK to program an infusion", small: true }] });
       case "continueLast": return Object.assign(base, { head: `Last therapy: ${drugLabel(c.primary)}`, tags: ["PRIM"], lines: [{ text: "Continue last infusion?", sel: true, right: "Yes ▲<br>No ▼" }] });
       case "careUnit": return listSpec(base, "Select Care Unit", sc);
+      case "category": return listSpec(base, `Select category${sc.secondary ? " · SEC" : ""}`, sc);
+      case "subcat": return listSpec(base, `Medications${sc.secondary ? " · SEC" : ""}`, sc);
       case "drugList": return listSpec(base, `${PROFILES[S.profile] ? PROFILES[S.profile].name.replace("Adult ", "") : "Drugs"}${sc.secondary ? " · SEC" : ""}`, sc);
       case "concList": return listSpec(base, "Select concentration", sc);
       case "secMenu":
@@ -571,7 +590,7 @@ const Space = (() => {
   function pending() {
     const sc = S.screen;
     if (["concList", "advisory", "softMsg", "hardMsg", "secCheck"].includes(sc.id)) return true;
-    if (sc.id === "drugList") return true;
+    if (["drugList", "category", "subcat"].includes(sc.id)) return true;
     if (sc.id === "editor") return true;
     if (sc.id === "home") return !!S.draft && !(S.draft.existing && ch().state === "stopped" && !S.draft.secondary);
     return false;

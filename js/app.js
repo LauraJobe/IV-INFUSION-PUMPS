@@ -113,8 +113,10 @@
   });
 
   // Dual-line cassette pump keys
-  $$(".plk").forEach((b) => b.addEventListener("click", () => { keyTone(); Plum.softKey("B", +b.dataset.i); }));
-  $$("[data-pl]").forEach((b) => b.addEventListener("click", () => { keyTone(); Plum.key(b.dataset.pl); }));
+  // The recorded start beep plays when a line actually starts.
+  const plumAct = (fn) => { const n = Plum.state.log.length; fn(); if (Plum.state.log.slice(n).some((e) => /^(start|startSecondary|titrate|resume)$/.test(e.type))) plumPowerTone(); };
+  $$(".plk").forEach((b) => b.addEventListener("click", () => { keyTone(); plumAct(() => Plum.softKey("B", +b.dataset.i)); }));
+  $$("[data-pl]").forEach((b) => b.addEventListener("click", () => { keyTone(); plumAct(() => Plum.key(b.dataset.pl)); }));
   $("#plPower").addEventListener("click", () => {
     audioUnlock();
     const was = Plum.state.on;
@@ -266,16 +268,19 @@
     audioUnlock();
     if (!P.state.on) return;
     if (DEV === "sq") tone(1000, 0.09, 0, 0.07, 0.12);
-    else if (DEV === "plum") tone(2000, 0.06, 0, 0.06, 0.1);
-    else if (DEV === "space") tone(1600, 0.04, 0, 0.05, 0.1);
+    else if (DEV === "plum") tone(2877, 0.05, 0, 0.05);
+    else if (DEV === "space") tone(3915, 0.06, 0, 0.04);
     else tone(1200, 0.1, 0, 0.07, 0.16);
     buzz(20);
   }
   // Single-channel pump power on: a short rising two-note chime.
   // Cassette pump: one beep at power on (the manual says to listen for it).
-  // Compact pump power on: the manual says two tones sound during the self test.
-  function spacePowerTone() { tone(1500, 0.15, 0, 0.06); tone(2000, 0.15, 0.25, 0.06); buzz([80, 80, 80]); }
-  function plumPowerTone() { tone(2000, 0.25, 0, 0.06); buzz([120]); }
+  // Compact pump power on (measured from a recording): a 613 Hz tone, 0.55 s,
+  // then a short high 3.9 kHz beep (the manual: two tones during the self test).
+  function spacePowerTone() { tone(613, 0.55, 0, 0.08, 0.1); tone(3915, 0.1, 0.9, 0.04); buzz([200, 300, 60]); }
+  // Cassette pump: a single 2.88 kHz beep, 0.21 s (measured from a recording);
+  // used at power on and when a line is started.
+  function plumPowerTone() { tone(2877, 0.21, 0, 0.06); buzz([120]); }
   function sqPowerTone() { tone(1000, 0.12, 0, 0.06); tone(1500, 0.18, 0.15, 0.06); buzz([60, 60, 120]); }
   // A channel is "selected but not started" from CHANNEL SELECT until START:
   // any step of the programming flow, or an edited (not yet started) change.
@@ -339,39 +344,41 @@
     } else { tone(1000, 0.2, lead, 0.06, 0.08); buzz(200, lead * 1000); }
   }
 
-  // Cassette pump (no recording yet): three 1.4 kHz beeps every 3 s for an
-  // alarm; one short beep every 1.5 s while a line is programmed but not started.
+  // Cassette pump: alarm = three of its 2.88 kHz beeps every 3 s (the alarm
+  // itself was not in the recording); one short beep every 1.5 s while a line
+  // is programmed but not started.
   function plumAlarmAudio(S) {
     const a = ["A", "B"].map((id) => S.channels[id].alarm).find(Boolean);
     const now = Date.now();
     if (!a) {
-      if (Plum.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(2000, 0.12, 0, 0.05, 0.08); }
+      if (Plum.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(2877, 0.1, 0, 0.04); }
       return;
     }
     const next = lastBeep + 3000;
     if (now < next - 260) return;
     const lead = now < next ? (next - now) / 1000 : 0;
     lastBeep = now < next + 260 ? next : now;
-    [0, 0.25, 0.5].forEach((t) => tone(1400, 0.15, lead + t, 0.08, 0.08));
+    [0, 0.3, 0.6].forEach((t) => tone(2877, 0.21, lead + t, 0.07));
     buzz([150, 100, 150, 100, 150], lead * 1000);
   }
 
-  // Compact pump (no recording yet): operating alarm = two-tone 1.2/0.9 kHz
-  // pattern every 2.5 s; programming not started = one short beep every 1.5 s.
+  // Compact pump operating alarm (measured from an upstream-occlusion alarm):
+  // three notes, about 984 -> 555 -> 655 Hz, repeating every 7.5 s.
+  // Programming not started: one short beep every 1.5 s.
   function spaceAlarmAudio(S) {
     const a = S.channels.A.alarm;
     const now = Date.now();
     if (!a) {
-      if (Space.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(1600, 0.12, 0, 0.05, 0.08); }
+      if (Space.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(3915, 0.1, 0, 0.035); }
       return;
     }
-    const gap = a.level === "high" ? 2500 : 5000;
+    const gap = 7500;
     const next = lastBeep + gap;
     if (now < next - 260) return;
     const lead = now < next ? (next - now) / 1000 : 0;
     lastBeep = now < next + 260 ? next : now;
-    if (a.level === "high") { tone(1200, 0.2, lead, 0.08, 0.08); tone(900, 0.2, lead + 0.25, 0.08, 0.08); tone(1200, 0.2, lead + 0.5, 0.08, 0.08); buzz([200, 50, 200, 50, 200], lead * 1000); }
-    else { tone(1200, 0.2, lead, 0.06, 0.08); buzz(200, lead * 1000); }
+    tone(984, 0.09, lead, 0.08, 0.08); tone(555, 0.13, lead + 0.08, 0.09, 0.08); tone(655, 0.11, lead + 0.19, 0.08, 0.08);
+    buzz([100, 30, 130, 30, 110], lead * 1000);
   }
 
   // ------------------------------------------------------------ render compact pump
