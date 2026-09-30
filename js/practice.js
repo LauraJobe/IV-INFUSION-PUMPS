@@ -320,7 +320,8 @@ const PRACTICE = (() => {
     } else if (o.kind === "titrate") {
       Object.assign(chA, { drugId: o.drugId, concIdx: o.concIdx, dose: o.fromDose, vtbi: o.conc.vol, remaining: Math.round(o.conc.vol * 0.7) });
     }
-    P.preset({ patientId: o.patient.mrn, profile: o.profile, weight: o.kind === "titrate" ? o.patient.weight : null, channels: [chA, chB] });
+    P.preset({ patientId: o.patient.mrn, profile: o.profile, weight: o.kind === "titrate" ? o.patient.weight : null, channels: [chA, chB],
+      syringe: o.syrSize ? { brand: o.syrBrand.toUpperCase(), size: o.syrSize } : null });
   }
 
   const close = (a, b) => a != null && Math.abs(a - b) <= Math.max(0.051, Math.abs(b) * 0.005);
@@ -390,7 +391,9 @@ const PRACTICE = (() => {
     const items = [{ label: "Infusion mode", ok: modeOk, want: int ? "Volume/time, Dose/time or Dose/kg" : `Dose/kg/${d.dose.time === "min" ? "min" : "hr"}`, got: SYR_MODE_NAMES[e.pm] || "—" }];
     if (e.pm === "dose" || e.pm === "dosekg") items.push({ label: "Drug program", ok: e.drugId === o.drugId, want: d.prog, got: SYR_DRUGS[e.drugId] ? SYR_DRUGS[e.drugId].prog : "—" });
     if (e.pm === "dosekg") items.push({ label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
-    if (o.syrSize) items.push({ label: "Syringe size", ok: e.syrSize === o.syrSize, want: `${o.syrSize} mL`, got: e.syrSize ? `${e.syrSize} mL` : "—" });
+    if (o.syrSize) items.push(
+      { label: "Syringe type", ok: e.syrType === o.syrBrand.toUpperCase(), want: o.syrBrand, got: e.syrType || "—" },
+      { label: "Syringe size", ok: e.syrSize === o.syrSize, want: `${o.syrSize} mL`, got: e.syrSize ? `${e.syrSize} mL` : "—" });
     const rows = !int ? [["Dose", e.pm === "dosekg" ? e.dose : null, o.dose, doseUnitLabel(d)]]
       : e.pm === "voltime" ? [["Volume", e.vtbi, o.vtbi, "mL"], ["Time", e.time, o.minutes, "min"]]
       : [["Dose", e.total, o.dose, d.dose.unit], ["Time", e.time, o.minutes, "min"]];
@@ -553,10 +556,11 @@ const PRACTICE = (() => {
       o.patient.mrn = String(randInt(400000, 899999));
       o.patient.unit = o.spec;
       o.profile = o.syrProfile;
-      // The syringe pharmacy sends (smallest that holds the dose; drips come in 60 mL).
-      o.syrSize = o.kind === "titrate" ? null : o.vtbi ? [1, 3, 5, 10, 20, 30, 60].find((z) => z >= o.vtbi) || 60 : 60;
+      // The syringe from pharmacy: a random size that holds the dose (drips: 20-60 mL)
+      // and a random brand. Students read both off the syringe on the pump.
+      const fits = [1, 3, 5, 10, 20, 30, 60].filter((z) => z >= (o.vtbi || 20));
+      o.syrSize = o.kind === "titrate" ? null : pick(fits.slice(0, 3));
       o.syrBrand = pick(["B-D", "Monoject", "Terumo"]);
-      if (o.syrSize) o.text += `<br><span class="policy">Pharmacy sent a <b>${o.syrBrand} ${o.syrSize} mL</b> syringe.</span>`;
       o.drug = SYR_DRUGS[o.drugId];
       o.conc = o.drug.concs[0];
       if (o.kind === "titrate") o.conc = o.drug.concs[0];
@@ -570,9 +574,9 @@ const PRACTICE = (() => {
     const cats = []; Object.values(SYR_DRUGS).forEach((x) => { if (!cats.includes(x.syrCat)) cats.push(x.syrCat); }); cats.sort();
     const progs = Object.values(SYR_DRUGS).filter((x) => x.syrCat === d.syrCat).map((x) => x.id);
     const kgLabel = d.mode === "int" ? "DOSE/KG" : `DOSE/KG/${d.dose.time === "min" ? "MIN" : "HR"}`;
-    const lib = `Category <b>${cats.indexOf(d.syrCat) + 1}</b> (${d.syrCat}) → Program <b>${progs.indexOf(o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → ENTER (high-alert advisory)" : ""}`;
+    const lib = `Category <b>${cats.indexOf(d.syrCat) + 1}</b> (${d.syrCat}) → Program <b>${progs.indexOf(o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → CONFIRM (high-alert advisory)" : ""}`;
     const brand = ["B-D", "Monoject", "Terumo"].indexOf(o.syrBrand) + 1;
-    const syr = o.syrSize ? `Syringe type <b>${brand}</b> (${(o.syrBrand || "").toUpperCase()}) → load the <b>${o.syrSize} mL</b> syringe (press ${[1, 3, 5, 10, 20, 30, 60].indexOf(o.syrSize) + 1})${o.syrSize <= 3 ? ` → confirm size <b>${o.syrSize} mL</b>` : " → size recognized: ENTER"}` : "";
+    const syr = o.syrSize ? `Read the syringe on the pump (<b>${o.syrBrand} ${o.syrSize} mL</b>): syringe type <b>${brand}</b> → <b>LOAD SYRINGE</b>${o.syrSize <= 3 ? ` → pick <b>${o.syrSize} ML</b> → <b>CONFIRM</b>` : " → size recognized → <b>CONFIRM</b>"}` : "";
     const prime = "Prompt alternates START / BOLUS: press <b>BOLUS</b>, press and hold BOLUS until fluid reaches the end of the tubing, <b>EXIT</b> → press <b>START</b>";
     if (o.kind === "titrate") return ["Press the <b>CHG DOSE</b> soft key", `Type <b>${fmtNum(o.dose, 3)}</b> → ENTER (new rate ${fmtNum(o.rate, 2)} mL/h)`, "Press <b>START</b> to confirm the new dose"];
     if (o.kind === "hold") return [`Mode <b>4</b> (DOSE/KG) → ${lib}`, syr, `WEIGHT ${o.patient.weight} → ENTER → DOSE ${fmtNum(o.dose, 3)} → ENTER: the pump shows the hard limit`, "OK, then click “Can't give: hold and clarify” in the practice panel."];

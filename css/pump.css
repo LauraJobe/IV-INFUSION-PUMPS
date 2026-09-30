@@ -799,7 +799,7 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .sys-soft div { display: grid; place-items: center; font-size: 10px; text-align: center; cursor: pointer; border-right: 1px solid #a9da96; padding: 1px; }
 .sys-soft div:last-child { border-right: 0; }
 .sys-soft div.empty { cursor: default; }
-.sys-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px; font-size: 11.5px; }
+.sys-menu { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; gap: 1px 10px; font-size: 11.5px; }
 .sys-menu span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sys-menu b { display: inline-block; width: 14px; }
 .sys-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px; font-size: 11.5px; }
@@ -815,3 +815,13 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .sys-boot b { font: 700 22px var(--f-display); letter-spacing: .1em; }
 @media (pointer: coarse) { .syk { height: 32px; } .syn { width: 48px; height: 48px; } .sy-pad { grid-template-columns: repeat(3, 48px); grid-auto-rows: 48px; } }
 @media (prefers-reduced-motion: reduce) { .sys-alarm, .sys-top .run.go { animation: none; } }
+
+/* Syringe size/brand on the barrel; the drawing scales with the syringe size. */
+.sy-barrel { width: calc(300px * var(--syr, 1)); height: calc(8px + 14px * var(--syr, 1)); top: calc(13px - 7px * var(--syr, 1)); }
+.sy-plunger { left: calc(var(--fill, 90) * 3px * var(--syr, 1)); }
+.sy-driver { left: calc(var(--fill, 90) * 3px * var(--syr, 1) + 110px); }
+.sy-ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 9px, rgba(40, 60, 70, .45) 9px 10px); pointer-events: none; }
+.sy-label { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font: 700 11px var(--f-lcd); color: #1b3a5a; white-space: nowrap; background: rgba(255, 255, 255, .85); padding: 0 4px; border-radius: 2px; }
+.sy-syringe.none { visibility: hidden; }
+.sy-syringe.out { transform: translateY(-14px) rotate(-2deg); opacity: .9; }
+.sy-syringe { transition: transform .4s; }
