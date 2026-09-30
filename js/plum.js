@@ -181,7 +181,7 @@ const Plum = (() => {
   function startDraft(d) {
     const L = line(d.line), A = line("A");
     const prog = toProgram(d);
-    const evt = { ch: d.line, drugId: libId(prog), mode: isDose(d) ? "guardrails" : "rate", therapy: prog.mode, dose: libDose(prog, d.rate), doseUnit: d.doseUnit, enteredDose: d.dose,
+    const evt = { ch: d.line, profile: S.profile, drugId: libId(prog), mode: isDose(d) ? "guardrails" : "rate", therapy: prog.mode, dose: libDose(prog, d.rate), doseUnit: d.doseUnit, enteredDose: d.dose,
       concVol: isDose(d) ? d.concVol : null, concAmt: libConcAmt(prog), weight: perKg(d) ? d.weight : null, rate: d.rate, vtbi: d.vtbi, traced: true, overrides: 0 };
     if (d.line === "B" && L.mode === "Piggyback" && ["running", "delayed", "kvo"].includes(A.state) && A.primary) {
       L.primary = prog; L.state = "running"; L.alarm = null; A.state = "delayed";
@@ -251,8 +251,7 @@ const Plum = (() => {
       S.on = true; log("powerOn"); go("boot");
       bootTimer = setTimeout(() => {
         if (S.screen.id !== "boot") return;
-        const has = LINES.some((id) => line(id).primary);
-        go(has ? "clearSettings" : "main");
+        go("newPatient");
       }, BOOT_MS);
       return;
     }
@@ -272,6 +271,8 @@ const Plum = (() => {
       if (sc.draft) return moveField(dir);
       return;
     }
+    // Drug list: the number keys jump by letter (press 1 once = A, twice = B ...).
+    if (sc.id === "drugList" && /^[1-9]$/.test(k)) return letterJump(k);
     if (/^[0-9.]$/.test(k)) {
       const d = sc.draft;
       if (!d || !["program"].includes(sc.id) || d.field === "mode") return;
@@ -330,6 +331,7 @@ const Plum = (() => {
   }
 
   // ------------------------------------------------------------ flow
+  // [A] or [B] with nothing programmed opens the unit's medication list first.
   function openLine(id) {
     const L = line(id);
     log("select", { ch: id });
@@ -337,19 +339,36 @@ const Plum = (() => {
       if (L.state === "kvo") L.alarm = null;
       return go("program", { draft: newDraft(id, L.primary) });
     }
-    go("program", { draft: newDraft(id) });
+    openDrugList(newDraft(id), "program");
   }
 
   function drugListItems() {
-    const names = Object.keys(DRUGS).filter((id) => !SYR_DRUGS[id] && !/fluid|blood|bolus/i.test(DRUGS[id].cls) && !DRUGS[id].base)
+    const src = S.profile ? profileDrugList(S.profile).map((d) => d.id) : Object.keys(DRUGS).filter((id) => !SYR_DRUGS[id]);
+    const names = src.filter((id) => !DRUGS[id].base)
       .map((id) => ({ label: DRUGS[id].name, drugId: id }))
       .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
     return [{ label: "No Drug Selected", drugId: null }].concat(names);
+  }
+  const KEY_LETTERS = { 1: "ABC", 2: "DEF", 3: "GHI", 4: "JKL", 5: "MNO", 6: "PQR", 7: "STU", 8: "VWX", 9: "YZ" };
+  let tap = null;
+  function letterJump(k) {
+    const sc = S.screen, set = KEY_LETTERS[k];
+    const now = Date.now();
+    tap = tap && tap.k === k && now - tap.t < 1100 ? { k, i: (tap.i + 1) % set.length, t: now } : { k, i: 0, t: now };
+    const letter = set[tap.i];
+    const idx = sc.list.findIndex((it) => it.drugId && it.label.replace(/[^A-Za-z]/g, "").toUpperCase().startsWith(letter));
+    if (idx >= 0) sc.cur = idx; else flash(`No drugs start with ${letter}`, "warn");
+    sc.letter = letter;
+    emit();
   }
   function openDrugList(draft, next) {
     const list = drugListItems();
     const cur = Math.max(0, list.findIndex((x) => x.drugId === draft.drugId));
     go("drugList", { draft, next, list, cur });
+  }
+  function toCareUnit() {
+    const pids = Object.keys(PROFILES);
+    go("careUnit", { list: pids.map((pid) => ({ label: PROFILES[pid].name, pid })), cur: Math.max(0, pids.indexOf(S.profile)) });
   }
   function page(dir) { const sc = S.screen; sc.cur = Math.max(0, Math.min(sc.list.length - 1, sc.cur + dir * PAGE)); emit(); }
 
@@ -357,6 +376,13 @@ const Plum = (() => {
     const sc = S.screen, d = sc.draft, it = sc.list[sc.cur];
     d.drugId = it.drugId;
     if (it.drugId) log("drugPicked", { ch: d.line, drugId: it.drugId });
+    if (sc.next === "program") {
+      // A drug with a dose goes to Dose Calculation; fluids and IVPB go to Rate/VTBI.
+      const drug = it.drugId && DRUGS[it.drugId];
+      if (drug && drug.dose) { d.therapy = "dose"; return go("doseUnits", { draft: d, list: DOSE_UNITS.map((u) => ({ label: u })), cur: Math.max(0, DOSE_UNITS.indexOf(drugDoseLabel(drug))) }); }
+      d.field = "rate";
+      return go("program", { draft: d });
+    }
     if (sc.next === "therapy") return go("therapy", { draft: d, list: THERAPIES.map((t) => ({ label: t })), cur: 0 });
     go("options", { draft: d });
   }
@@ -402,6 +428,13 @@ const Plum = (() => {
     switch (sc.id) {
       case "off": return Object.assign(base, { off: true });
       case "boot": return Object.assign(base, { boot: true });
+      case "newPatient":
+        return Object.assign(base, { title: "SETUP", body: `<div class="pl-center"><b>New Patient?</b><br>Yes clears ALL settings</div>`,
+          soft: [K("Yes", () => { LINES.forEach((id) => { const b = line(id).bedside; S.channels[id] = Object.assign(newLine(id), { bedside: b }); }); S.weight = null; S.profile = null; log("newPatient", { yes: true }); toCareUnit(); }),
+            K("No", () => { log("newPatient", { yes: false }); if (S.profile) go("main"); else toCareUnit(); }), null, null] });
+      case "careUnit":
+        return Object.assign(base, { title: "SELECT UNIT", body: listHTML(sc), msg: "Select, then Choose",
+          soft: [K("Choose", () => { S.profile = sc.list[sc.cur].pid; log("profile", { profile: S.profile }); go("main"); }), null, null, null] });
       case "clearSettings":
         return Object.assign(base, { title: "SETUP", body: `<div class="pl-center"><b>Clear Settings?</b><br>Yes clears ALL settings</div>`, msg: "",
           soft: [K("Yes", () => { LINES.forEach((id) => { const b = line(id).bedside; S.channels[id] = Object.assign(newLine(id), { bedside: b }); }); S.weight = null; log("newPatient", { yes: true }); go("main"); }),
@@ -419,8 +452,8 @@ const Plum = (() => {
           soft: [K("Drug List", () => openDrugList(d, "options")), K("Standby", () => { flash("Standby is not used in practice"); emit(); }), K("Enter", () => go("program", { draft: d })), K("Cancel/ Back", () => go("program", { draft: d }))] });
       }
       case "drugList":
-        return Object.assign(base, { title: "Program Drug List", line: sc.draft.line, body: listHTML(sc), msg: "Select, then Enter",
-          soft: [K("Page Up", () => page(-1)), K("Page Down", () => page(1)), K("Enter", drugPicked), K("Cancel/ Back", () => go(sc.next === "therapy" ? "program" : "options", { draft: sc.draft }))] });
+        return Object.assign(base, { title: "Program Drug List", line: sc.draft.line, body: listHTML(sc), msg: `Select, then Enter · letters on number keys${sc.letter ? ` (${sc.letter})` : ""}`,
+          soft: [K("Page Up", () => page(-1)), K("Page Down", () => page(1)), K("Enter", drugPicked), K("Cancel/ Back", () => (sc.next === "program" ? go("main") : go(sc.next === "therapy" ? "program" : "options", { draft: sc.draft })))] });
       case "therapy":
         return Object.assign(base, { title: "PROGRAM", line: sc.draft.line, drug: sc.draft.drugId ? DRUGS[sc.draft.drugId].name : "No Drug Selected", body: listHTML(sc), msg: "Select, then Choose",
           soft: [K("Choose", therapyChosen), null, null, K("Back", () => openDrugList(sc.draft, "therapy"))] });
@@ -524,6 +557,7 @@ const Plum = (() => {
       line("A").primary = prog; line("A").state = "running";
     }
     S.screen = { id: "main" };
+    if (cfg.fresh) { S.profile = null; S.weight = null; S.screen = { id: "newPatient" }; }
     emit();
   }
 

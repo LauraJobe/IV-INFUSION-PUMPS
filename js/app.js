@@ -841,7 +841,7 @@
         <div class="name">${p.name}</div>
         <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
         <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
-        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? "" : "(profile already selected)"}</span></dd></dl>`);
+        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? "" : ["primary", "hold"].includes(o.kind) ? "(select this unit on the pump)" : "(unit already selected)"}</span></dd></dl>`);
     setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" || DEV === "space" ? o.text.replace(/ on Channel A/g, " on the pump") : DEV === "plum" ? o.text.replace(/ on Channel A/g, " on Line A").replace(/The secondary bag is hung above the primary with its clamp open\./, "The secondary container is attached to the Line B inlet.") : o.text}</p>`);
     setHTML($("#vitals"), "");
     setHTML($("#decisions"), "");
@@ -876,8 +876,20 @@
           : o.kind === "secondary" ? "The primary is running. Stop it with <b>RUN/STOP</b>, then <b>program pri/sec</b> → <b>program secndry</b>. Your work is checked when the secondary starts."
           : "The pump is on the Drug Search screen. Program the order. Your work is checked when the infusion starts (<b>RUN/STOP</b> → Check Flow <b>yes</b>).")
         : `Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.`;
-      const steps = DEV === "sq" ? PRACTICE.sqSteps(o) : DEV === "plum" ? PRACTICE.plumSteps(o) : DEV === "space" ? PRACTICE.spaceSteps(o) : DEV === "syr" ? PRACTICE.syrSteps(o) : o.steps;
-      body = `<p class="pr-help">${help}</p>
+      let steps = DEV === "sq" ? PRACTICE.sqSteps(o) : DEV === "plum" ? PRACTICE.plumSteps(o) : DEV === "space" ? PRACTICE.spaceSteps(o) : DEV === "syr" ? PRACTICE.syrSteps(o) : o.steps;
+      // New starts begin with New Patient and the unit (not on the syringe pump).
+      if (DEV !== "syr" && (o.kind === "primary" || o.kind === "hold") && PROFILES[o.profile]) {
+        const u = PROFILES[o.profile].name;
+        const first = {
+          mod: `New Patient? <b>Yes</b> → profile <b>${u}</b> → Yes → Patient ID <b>${p.mrn}</b> → CONFIRM`,
+          sq: `New Patient? <b>yes</b> → care area <b>${u}</b> (▲▼) → OK`,
+          plum: `New Patient? <b>Yes</b> → unit <b>${u}</b> (SELECT ▲▼) → Choose`,
+          space: "New patient? <b>Yes ▲</b>",
+        }[DEV];
+        if (first) steps = [first].concat(steps);
+      }
+      const newStart = DEV !== "syr" && (o.kind === "primary" || o.kind === "hold");
+      body = `<p class="pr-help">${newStart ? "Start with <b>New Patient? Yes</b> and select the unit. " : ""}${help}</p>
         <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
         ${X.showAnswer ? `<div class="pr-answer"><ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
     }

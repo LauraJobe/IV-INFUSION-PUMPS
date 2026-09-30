@@ -15,7 +15,7 @@ The start screen asks students to **select their clinical facility**, which open
 
 The compact arrow-key pump asks **IV Fluids or Medications** after the care unit, then the medication type (Antibiotics, Heart & Blood Pressure, Sedation & Pain, Electrolytes, Anticoagulants & Insulin, OB), then the drug.
 
-Practice mode, free practice, the check-off, grading and the drug library are shared by all five pumps. **Change facility** switches at any time; the choice is remembered on that device. The facility list is `FACILITIES` in `js/app.js`.
+Practice mode, free practice, the check-off, grading and the drug library are shared by all five pumps. New-start practice orders on every pump except the syringe pump begin at **New patient?** and the **unit** selection (graded). **Change facility** switches at any time; the choice is remembered on that device. The facility list is `FACILITIES` in `js/app.js`.
 
 **Open `index.html` in any browser.** No install, no internet needed except for fonts. It also works on GitHub Pages.
 

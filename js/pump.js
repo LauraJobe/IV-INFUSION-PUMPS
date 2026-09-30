@@ -808,6 +808,8 @@ const Pump = (() => {
       }
     });
     S.screen = { id: "main" };
+    // A new practice order starts at New Patient? -> profile -> patient ID.
+    if (cfg.fresh) { S.profile = null; S.patientId = null; S.weight = null; S.screen = { id: "newPatient" }; }
     emit();
   }
 

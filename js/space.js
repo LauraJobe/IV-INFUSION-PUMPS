@@ -298,7 +298,7 @@ const Space = (() => {
   function power() {
     if (!S.on) {
       S.on = true; log("powerOn"); go("boot");
-      bootTimer = setTimeout(() => { if (S.screen.id === "boot") go(ch().primary ? "continueLast" : "landing"); }, BOOT_MS);
+      bootTimer = setTimeout(() => { if (S.screen.id === "boot") go("newPatient"); }, BOOT_MS);
       return;
     }
     if (["running", "kvo"].includes(ch().state)) { flash("Stop the infusion first", "warn"); emit(); return; }
@@ -323,6 +323,11 @@ const Space = (() => {
       const e = sc.editor;
       if (k === "UP") { S.draft.overrides.push({ dir: sc.dir, val: e.val }); log("override", { ch: "A", drugId: S.draft.drugId, val: e.val, dir: sc.dir }); return applyValue(e); }
       if (k === "DOWN") { log("softReenter", { ch: "A" }); e.val = e.confirmed; return go("editor", e); }
+      return;
+    }
+    if (sc.id === "newPatient") {
+      if (k === "UP") { const b = c.bedside; S.channels.A = Object.assign(newChannel("A"), { bedside: b }); S.weight = null; S.profile = null; log("newPatient", { yes: true }); return go("landing"); }
+      if (k === "DOWN") { log("newPatient", { yes: false }); if (c.primary) { S.draft = draftFrom(c.primary, false); return go(c.state === "running" ? "run" : "home"); } return go("landing"); }
       return;
     }
     if (sc.id === "continueLast") {
@@ -493,6 +498,7 @@ const Space = (() => {
       case "off": return { off: true };
       case "boot": return { boot: true };
       case "landing": return Object.assign(base, { landing: true, lines: [{ text: "Press OK to program an infusion", small: true }] });
+      case "newPatient": return Object.assign(base, { head: c.primary ? `Last therapy: ${drugLabel(c.primary)}` : "Patient", lines: [{ text: "New patient?", sel: true, right: "Yes ▲<br>No ▼" }, { text: "Yes clears the last patient's data", small: true }] });
       case "continueLast": return Object.assign(base, { head: `Last therapy: ${drugLabel(c.primary)}`, tags: ["PRIM"], lines: [{ text: "Continue last infusion?", sel: true, right: "Yes ▲<br>No ▼" }] });
       case "careUnit": return listSpec(base, "Select Care Unit", sc);
       case "category": return listSpec(base, `Select category${sc.secondary ? " · SEC" : ""}`, sc);
@@ -617,6 +623,7 @@ const Space = (() => {
       c.state = "running";
       S.screen = { id: "run" };
     } else S.screen = { id: "landing" };
+    if (cfg.fresh) { S.profile = null; S.weight = null; S.screen = { id: "newPatient" }; }
     emit();
   }
 
