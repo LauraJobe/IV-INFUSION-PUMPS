@@ -786,8 +786,22 @@
     const specs = shuffle(["medsurg", "icu", "ld", "peds"]);
     while (specs.length < count) specs.push(shuffle(["medsurg", "icu", "ld", "peds"])[0]);
     quiz = { count, specs: shuffle(specs), used: new Set(), results: [], done: false };
-    // Bank check-offs (Level 1): a random set of orders from a fixed bank, no repeats.
-    if (scn.bank === "level1") quiz.bank = shuffle(LEVEL1_BANK.map((_, i) => i)).slice(0, count);
+    // Bank check-offs (Level 1): a random set from a fixed bank, half primary fluids and
+    // half secondaries, never the same fluid or IVPB drug twice in one attempt.
+    if (scn.bank === "level1") quiz.bank = level1Set(count);
+  }
+
+  function level1Set(count) {
+    const pickUnique = (type, n) => {
+      const used = new Set(), out = [];
+      shuffle(LEVEL1_BANK.map((b, i) => i).filter((i) => LEVEL1_BANK[i].t === type)).forEach((i) => {
+        const key = LEVEL1_BANK[i].f || LEVEL1_BANK[i].d;
+        if (out.length < n && !used.has(key)) { used.add(key); out.push(i); }
+      });
+      return out;
+    };
+    const nSec = Math.floor(count / 2);
+    return shuffle(pickUnique("p", count - nSec).concat(pickUnique("s", nSec)));
   }
 
   function quizOrder() {
