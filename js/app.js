@@ -308,7 +308,7 @@
     if (DEV === "sq") tone(1000, 0.09, 0, 0.07, 0.12);
     else if (DEV === "plum") tone(2877, 0.05, 0, 0.05);
     else if (DEV === "space") tone(3915, 0.06, 0, 0.04);
-    else if (DEV === "syr") tone(717, 0.06, 0, 0.06, 0.1);
+    else if (DEV === "syr") tone(2000, 0.05, 0, 0.05);
     else tone(1200, 0.1, 0, 0.07, 0.16);
     buzz(20);
   }
@@ -423,20 +423,22 @@
     buzz([100, 30, 130, 30, 110], lead * 1000);
   }
 
-  // Syringe pump: alarm (not in the recording) = three 717 Hz beeps every 3 s;
-  // programming not started = one short beep every 1.5 s.
+  // Syringe pump alarms (measured from a recording; occlusion, near empty and
+  // infusion complete all use it): a 962 Hz tone for about 1 s, then a louder
+  // 719 Hz tone for about 0.9 s, repeating every 5.2 s.
+  // Programming not started: one short beep every 1.5 s.
   function syrAlarmAudio(S) {
     const a = S.channels.A.alarm, now = Date.now();
     if (!a) {
-      if (Syringe.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(717, 0.12, 0, 0.05, 0.1); }
+      if (Syringe.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(719, 0.12, 0, 0.05, 0.1); }
       return;
     }
-    const next = lastBeep + 3000;
+    const next = lastBeep + 5200;
     if (now < next - 260) return;
     const lead = now < next ? (next - now) / 1000 : 0;
     lastBeep = now < next + 260 ? next : now;
-    [0, 0.3, 0.6].forEach((t) => tone(717, 0.2, lead + t, 0.08, 0.12));
-    buzz([200, 100, 200, 100, 200], lead * 1000);
+    tone(962, 1.04, lead, 0.05, 0.3); tone(719, 0.93, lead + 1.05, 0.09, 0.15);
+    buzz([1000, 50, 900], lead * 1000);
   }
 
   // ------------------------------------------------------------ render syringe pump
@@ -464,11 +466,21 @@
     scr.className = "sy-screen" + (!S.on || spec.off ? " off" : "");
     if (!S.on || spec.off) { setHTML(scr, ""); return; }
     if (spec.boot) { setHTML(scr, `<div class="sys-boot"><b>SYRINGE PUMP</b><span>SELF TEST IN PROGRESS</span><span style="font-size:11px">DO NOT MOVE THE PLUNGER DRIVER</span></div>`); return; }
-    const top = `<div class="sys-top"><span class="t">${spec.title}</span><span class="u">${spec.unit || ""}${spec.running ? `<span class="run go"> ◀◀</span>` : ""}</span></div>`;
+    // Menus and number entry: the prompt in an inverse bar, the profile boxed at the right.
+    const top = spec.head
+      ? `<div class="sys-head"><span>${spec.head.bar}</span>${spec.head.box ? `<i>${spec.head.box}</i>` : ""}</div>`
+      : `<div class="sys-top"><span class="t">${spec.title}</span><span class="u">${spec.unit ? `<i class="pbox">${spec.unit}</i>` : ""}${spec.running ? `<span class="run go"> ◀◀</span>` : ""}</span></div>`;
     let body = "";
     if (spec.alarm) body += `<div class="sys-alarm">${spec.alarm.msg}</div>`;
     // Numbers run top to bottom, left column first.
-    if (spec.menu) body += `<div class="sys-menu" style="grid-template-rows:repeat(${Math.max(1, Math.ceil(spec.menu.length / 2))},auto)">${spec.menu.map((m) => `<span><b>${m.n}</b>${m.label}</span>`).join("")}</div>${spec.page ? `<div style="text-align:right;font-size:10px">${spec.page}</div>` : ""}`;
+    if (spec.menu) body += `<div class="sys-menu${spec.oneCol ? " one" : ""}" style="grid-template-rows:repeat(${spec.oneCol ? spec.menu.length : Math.max(1, Math.ceil(spec.menu.length / 2))},auto)">${spec.menu.map((m) => `<span><b>${m.n}</b>${m.label}</span>`).join("")}</div>${spec.page ? `<div style="text-align:right;font-size:10px">${spec.page}</div>` : ""}`;
+    if (spec.entry) {
+      const e = spec.entry;
+      body += `<div class="sys-entry"><div class="et">${e.title}</div>
+        <div class="lim">${e.hi != null ? `<span>HIGH</span><b>${e.hi} ${e.unit}</b>` : ""}${e.lo != null ? `<span>LOW</span><b>${e.lo} ${e.unit}</b>` : ""}</div>
+        <div class="in"><b>${e.value || "&nbsp;"}</b><span>${e.unit}</span></div>
+        ${e.current != null ? `<div class="cur">CURRENT SETTING ${e.current} ${e.unit}</div>` : ""}${e.hint ? `<div class="cur">${e.hint}</div>` : ""}</div>`;
+    }
     if (spec.rows) body += `<div class="sys-rows">${spec.rows.map((r) => `<div class="${r.big ? "big" : ""}${r.on ? " on" : ""}${r.rev ? " rev" : ""}"><span>${r.k}</span><b>${r.v}</b></div>`).join("")}</div>`;
     if (spec.msg) body += `<div class="sys-msg">${spec.msg}</div>`;
     if (S.flash) body += `<div class="sys-flash">${S.flash.text}</div>`;
@@ -841,7 +853,7 @@
         <div class="name">${p.name}</div>
         <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
         <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
-        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? "" : ["primary", "hold"].includes(o.kind) ? "(select this unit on the pump)" : "(unit already selected)"}</span></dd></dl>`);
+        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? (["primary", "hold"].includes(o.kind) ? "(pick the matching profile on the pump)" : "") : ["primary", "hold"].includes(o.kind) ? "(select this unit on the pump)" : "(unit already selected)"}</span></dd></dl>`);
     setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" || DEV === "space" ? o.text.replace(/ on Channel A/g, " on the pump") : DEV === "plum" ? o.text.replace(/ on Channel A/g, " on Line A").replace(/The secondary bag is hung above the primary with its clamp open\./, "The secondary container is attached to the Line B inlet.") : o.text}</p>`);
     setHTML($("#vitals"), "");
     setHTML($("#decisions"), "");
@@ -897,7 +909,7 @@
       ? `<div class="pr-head"><h3>Check-off · order ${quiz.results.length + (X.result ? 0 : 1)} of ${quiz.count}</h3></div>
          <div class="pr-score"><span>One attempt per order. Your score is the percent programmed correctly.</span></div>`
       : `<div class="pr-head"><h3>Practice mode</h3>
-        ${DEV === "syr" ? `<span class="pr-spec">NICU · PICU · General Peds</span>` : `<label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label>`}</div>
+        ${DEV === "syr" ? `<span class="pr-spec">NICU · PICU · AcuteCare</span>` : `<label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label>`}</div>
       <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>`;
     setHTML($("#goals"), head + body);
     const hist = S.log.slice(X.logStart).slice(-20).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
@@ -1013,7 +1025,7 @@
     }
     return e.type;
   }
-  const ALARM_TEXT = { air: "air in line", patientOcc: "patient side occlusion", fluidOcc: "fluid side occlusion", complete: "infusion complete", secComplete: "secondary complete", paused: "paused too long" };
+  const ALARM_TEXT = { air: "air in line", patientOcc: "patient side occlusion", fluidOcc: "fluid side occlusion", complete: "infusion complete", near: "near empty / near end of infusion", secComplete: "secondary complete", paused: "paused too long" };
   const BEDSIDE_TEXT = {
     prime: () => "spiked and primed bag", load: () => "set loaded, door closed", unload: () => "door opened", trace: () => "line traced",
     clamp: (e) => `roller clamp ${e.clampOpen ? "opened" : "closed"}`, fixOcclusion: () => "site checked, line straightened", clearAir: () => "air cleared",
