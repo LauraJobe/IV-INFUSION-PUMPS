@@ -786,9 +786,12 @@
     const specs = shuffle(["medsurg", "icu", "ld", "peds"]);
     while (specs.length < count) specs.push(shuffle(["medsurg", "icu", "ld", "peds"])[0]);
     quiz = { count, specs: shuffle(specs), used: new Set(), results: [], done: false };
+    // Bank check-offs (Level 1): a random set of orders from a fixed bank, no repeats.
+    if (scn.bank === "level1") quiz.bank = shuffle(LEVEL1_BANK.map((_, i) => i)).slice(0, count);
   }
 
   function quizOrder() {
+    if (quiz.bank) return PRACTICE.bankOrder(LEVEL1_BANK[quiz.bank[quiz.results.length]]);
     const spec = quiz.specs[quiz.results.length];
     let o = null;
     for (let i = 0; i < 30; i++) { o = DEV === "syr" ? PRACTICE.syringeOrder() : PRACTICE.newOrder(spec, { noHold: DEV === "plum" }); if (o && !quiz.used.has(o.drugId)) break; }

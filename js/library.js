@@ -26,6 +26,16 @@ const DRUGS = {
     concs: [{ vol: 1000 }],
     dose: null, limits: { softMin: 10, softMax: 250, hardMax: 999 },
   },
+  halfns: {
+    name: "Sodium Chloride 0.45%", short: "1/2NS 0.45%", cls: "IV fluid",
+    concs: [{ vol: 1000 }, { vol: 500 }],
+    dose: null, limits: { softMin: 10, softMax: 250, hardMax: 999 },
+  },
+  d5w: {
+    name: "Dextrose 5% in Water", short: "D5W", cls: "IV fluid",
+    concs: [{ vol: 1000 }, { vol: 500 }],
+    dose: null, limits: { softMin: 10, softMax: 200, hardMax: 500 },
+  },
   d5halfns: {
     name: "Dextrose 5%-NaCl 0.45%", short: "D5 1/2NS", cls: "IV fluid",
     concs: [{ vol: 1000 }],
@@ -286,7 +296,7 @@ const PROFILES = {
   medsurg: {
     name: "Adult Med-Surg", short: "ADULT MED-SURG",
     drugs: {
-      ns: {}, nsBolus: { limits: { softMax: 500, hardMax: 999 } }, lr: {}, d5ns: {}, d5halfns: {}, d5halfnsk: {},
+      ns: {}, nsBolus: { limits: { softMax: 500, hardMax: 999 } }, lr: {}, halfns: {}, d5w: {}, d5ns: {}, d5halfns: {}, d5halfnsk: {},
       cefazolin: {}, ceftriaxone: {}, ciprofloxacin: {}, metronidazole: {}, vancomycin: {}, piptazo: {},
       kcl: {}, magnesium: {}, heparin: {}, prbc: {},
     },
@@ -294,7 +304,7 @@ const PROFILES = {
   icu: {
     name: "Adult Critical Care / PCU", short: "ADULT ICU/PCU",
     drugs: {
-      ns: {}, nsBolus: {}, lr: {}, d5ns: {}, d5halfns: {}, d5halfnsk: {},
+      ns: {}, nsBolus: {}, lr: {}, halfns: {}, d5w: {}, d5ns: {}, d5halfns: {}, d5halfnsk: {},
       cefazolin: {}, ceftriaxone: {}, ciprofloxacin: {}, metronidazole: {}, vancomycin: {}, piptazo: {},
       kcl: { limits: { softMax: 10, hardMax: 20 }, note: "Central line: soft max 10, hard max 20 mEq/hr with cardiac monitoring." },
       magnesium: {}, heparin: {}, insulin: {}, prbc: {},

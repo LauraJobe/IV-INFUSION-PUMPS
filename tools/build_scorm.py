@@ -11,6 +11,8 @@ Usage: python3 tools/build_scorm.py OUT.zip --device mod   (modular pump)
        python3 tools/build_scorm.py OUT.zip --device plum  (dual-line cassette pump)
        python3 tools/build_scorm.py OUT.zip --device space (compact arrow-key pump)
        python3 tools/build_scorm.py OUT.zip --device syr   (syringe pump)
+       python3 tools/build_scorm.py OUT.zip --level1       (Level 1 Med-Surg: modular
+           pump, 10 random primary/secondary IV orders from a bank of 40)
 """
 import sys
 import zipfile
@@ -18,7 +20,8 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
 out = Path(sys.argv[1])
-device = sys.argv[sys.argv.index("--device") + 1] if "--device" in sys.argv else None
+level1 = "--level1" in sys.argv
+device = "mod" if level1 else sys.argv[sys.argv.index("--device") + 1] if "--device" in sys.argv else None
 if device not in ("mod", "sq", "plum", "space", "syr"):
     sys.exit("choose a pump: --device mod, sq, plum, space or syr")
 pump_name = {"mod": "Modular pump", "sq": "Single-channel pump", "plum": "Dual-line cassette pump", "space": "Compact arrow-key pump", "syr": "Syringe pump"}[device]
@@ -26,12 +29,17 @@ js_files = sorted(str(p.relative_to(root)) for p in (root / "js").glob("*.js"))
 icon_files = sorted(str(p.relative_to(root)) for p in (root / "icons").glob("*.png"))
 files = ["index.html", "manifest.webmanifest", "css/pump.css", "js/config.js"] + js_files + icon_files
 
-config = f'window.IVP_CONFIG = {{ mode: "quiz", lockMode: true, lms: true, device: "{device}" }};\n'
+mode = "level1" if level1 else "quiz"
+config = f'window.IVP_CONFIG = {{ mode: "{mode}", lockMode: true, lms: true, device: "{device}" }};\n'
+if level1:
+    ident, org_title, item_title = "IV_PUMP_LEVEL1_MEDSURG", "Level 1 IV Pump Check-off: Med-Surg Primary and Secondary", "Level 1: 10 random primary/secondary IV orders (modular pump)"
+else:
+    ident, org_title, item_title = f"IV_PUMP_CHECKOFF_{device.upper()}", f"IV Pump Check-off: {pump_name}", f"IV Pump Check-off ({pump_name}): 5 random orders"
 html = (root / "index.html").read_text()
 html = html.replace('<script src="js/library.js"></script>', '<script src="js/config.js"></script>\n<script src="js/library.js"></script>', 1)
 
 manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="IV_PUMP_CHECKOFF_{device.upper()}" version="1.2"
+<manifest identifier="{ident}" version="1.2"
   xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"
   xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -39,9 +47,9 @@ manifest = f"""<?xml version="1.0" encoding="UTF-8"?>
   <metadata><schema>ADL SCORM</schema><schemaversion>1.2</schemaversion></metadata>
   <organizations default="ORG">
     <organization identifier="ORG">
-      <title>IV Pump Check-off: {pump_name}</title>
+      <title>{org_title}</title>
       <item identifier="ITEM1" identifierref="RES1">
-        <title>IV Pump Check-off ({pump_name}): 5 random orders</title>
+        <title>{item_title}</title>
       </item>
     </organization>
   </organizations>
@@ -61,4 +69,4 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
     z.write(root / "manifest.webmanifest", "manifest.webmanifest")
     for f in js_files + icon_files:
         z.write(root / f, f)
-print(f"wrote {out} ({pump_name}) with {len(files)} files")
+print(f"wrote {out} ({org_title}) with {len(files)} files")

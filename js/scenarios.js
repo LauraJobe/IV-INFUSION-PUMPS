@@ -17,6 +17,12 @@ const SCENARIOS = [
     setup: () => {},
   },
   {
+    // Level 1 SCORM (modular pump): 10 of the 40 Med-Surg orders in level1.js.
+    id: "level1", level: "Practice", title: "Level 1 check-off: primary & secondary IV", practice: true, quiz: true, count: 10, bank: "level1", lmsOnly: true,
+    summary: "Ten random Med-Surg orders: basic IV fluids as primary infusions and IVPB secondary infusions. One attempt each, then a score (percent programmed correctly).",
+    setup: () => {},
+  },
+  {
     id: "free", level: "Practice", title: "Free practice: explore the pump",
     summary: "No order to follow. Start from power-off and try every screen. Tubing is already primed and loaded.",
     patient: null,
