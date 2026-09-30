@@ -267,11 +267,29 @@
   }));
 
   // ------------------------------------------------------------ audio
-  let actx = null;
+  let actx = null, audioPrimed = false;
+  // Browsers (iPad/iPhone Safari especially) only allow sound after a tap, start
+  // it paused, and pause it again when the app goes to the background.
   function audioUnlock() {
-    if (actx) return;
-    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; }
+    try {
+      if (!actx) {
+        // iPadOS 17+: play pump tones even when the iPad is set to silent.
+        try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) { /* not supported */ }
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (actx.state !== "running") { const r = actx.resume(); if (r && r.catch) r.catch(() => {}); }
+      if (!audioPrimed) {
+        // A silent sound played inside the tap unlocks audio on iOS.
+        audioPrimed = true;
+        const src = actx.createBufferSource();
+        src.buffer = actx.createBuffer(1, 1, 22050);
+        src.connect(actx.destination);
+        src.start(0);
+      }
+    } catch (e) { actx = null; }
   }
+  ["touchend", "pointerup", "click", "keydown"].forEach((ev) => document.addEventListener(ev, audioUnlock, { capture: true, passive: true }));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && actx && actx.state !== "running") { const r = actx.resume(); if (r && r.catch) r.catch(() => {}); } });
   // Pump tones are near-pure sine beeps. Pitches and lengths were measured
   // from a recording of the real pump; the sound itself is synthesized here.
   function tone(freq, dur, when = 0, gain = 0.08, third = 0) {
