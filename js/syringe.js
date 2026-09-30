@@ -16,6 +16,8 @@ const Syringe = (() => {
   const PER_PAGE = 8;
   let S;
   const listeners = [];
+  // Last program per drug ("Recall last settings"); kept like the pump's memory.
+  const lastSettings = {};
   let bootTimer = null;
 
   function newBedside() {
@@ -47,7 +49,23 @@ const Syringe = (() => {
 
   // ------------------------------------------------------------ math
   const isInt = (d) => d.drug.mode === "int";
-  const doseUnit = (p) => (!p || !p.drug ? "ML/HR" : isInt(p) ? U(p.drug.dose.unit) : U(doseUnitLabel(p.drug)));
+  // Infusion modes chosen after the drug program: mL/hr, volume/time,
+  // dose/time (no weight) or dose/kg (weight based).
+  const MODES = ["mlhr", "voltime", "dose", "dosekg"];
+  function modeLabel(pm, drug) {
+    if (pm === "mlhr") return "ML/HR";
+    if (pm === "voltime") return "VOLUME/TIME";
+    if (pm === "dose") return "DOSE/TIME";
+    return drug.mode === "int" ? "DOSE/KG" : `DOSE/KG/${drug.dose.time === "min" ? "MIN" : "HR"}`;
+  }
+  const isDoseMode = (d) => d.pm === "dose" || d.pm === "dosekg";
+  // The drug as dosed in the chosen mode (dose/time drops the per-kg part).
+  const effDrug = (d) => (d.pm === "dose" && !isInt(d) ? { dose: Object.assign({}, d.drug.dose, { perKg: false }) } : d.drug);
+  function doseUnit(p) {
+    if (!p || !p.drug || !isDoseMode(p)) return "ML/HR";
+    if (isInt(p)) return p.pm === "dosekg" ? `${U(p.drug.dose.unit)}/KG` : U(p.drug.dose.unit);
+    return U(doseUnitLabel(effDrug(p)));
+  }
   const hasDose = (p) => !!(p && p.drug);
   const drugLabel = (p) => (p && p.drug ? p.drug.prog : "");
   const concOf = (d) => d.drug.concs[0];
@@ -58,16 +76,20 @@ const Syringe = (() => {
     const per = same ? (c.amt * UNIT_FACTORS[c.unit]) / UNIT_FACTORS[u] / c.vol : c.amt / c.vol;
     return `${fmtNum(per, 3)} ${U(same ? u : c.unit)}/ML`;
   }
-  const volFor = (d) => (isInt(d) && d.dose ? r3(d.dose / (concOf(d).amt / concOf(d).vol)) : null);
+  // Total amount for an intermittent dose (dose/kg mode multiplies by weight).
+  const totalDose = (d) => (d.dose == null ? null : d.pm === "dosekg" && isInt(d) ? r3(d.dose * d.weight) : d.dose);
+  const perMl = (d) => concOf(d).amt / concOf(d).vol;
 
   function recalc(d) {
+    if (d.pm === "mlhr") return;
+    if (d.pm === "voltime") { d.rate = d.vtbi && d.time ? r2(d.vtbi / (d.time / 60)) : null; return; }
     if (isInt(d)) {
-      const v = volFor(d);
-      d.vtbi = v;
-      d.rate = v && d.time ? r2(v / (d.time / 60)) : null;
-    } else if (d.dose != null && d.weight) d.rate = r2(doseToRate(d.drug, concOf(d), d.dose, d.weight));
+      const t = totalDose(d);
+      d.vtbi = t ? r3(t / perMl(d)) : null;
+      d.rate = d.vtbi && d.time ? r2(d.vtbi / (d.time / 60)) : null;
+    } else if (d.dose != null && (d.pm === "dose" || d.weight)) d.rate = r2(doseToRate(effDrug(d), concOf(d), d.dose, d.weight));
   }
-  const syringeFor = (d) => SIZES.find((s) => s >= (isInt(d) ? d.vtbi || 1 : 50)) || 60;
+  const syringeFor = (d) => SIZES.find((s) => s >= (d.vtbi && (isInt(d) || d.pm === "voltime") ? d.vtbi : 50)) || 60;
 
   // "30" = 30 min, "130" = 1 h 30 min
   function parseTime(buf) {
@@ -77,10 +99,14 @@ const Syringe = (() => {
   }
   const fmtTime = (m) => (m == null ? "--:--:--" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}:${String(Math.round((m * 60) % 60)).padStart(2, "0")}`);
 
-  // Limit check: continuous = dose; intermittent = dose per kg per dose.
+  // Limit check (dose modes only): continuous limits are per kg per time,
+  // intermittent limits per kg per dose. Without a weight they cannot apply.
   function limitCheck(d, dose) {
     const l = d.drug.limits;
-    const v = isInt(d) ? dose / d.weight : dose;
+    if (!isDoseMode(d)) return null;
+    if (d.pm === "dose" && !isInt(d)) return null;
+    if (d.pm === "dose" && isInt(d) && !d.weight) return null;
+    const v = isInt(d) ? (d.pm === "dosekg" ? dose : dose / d.weight) : dose;
     const unit = isInt(d) ? `${U(d.drug.dose.unit)}/KG` : doseUnit(d);
     if (l.hardMax != null && v > l.hardMax + 1e-9) return { kind: "hard", dir: "max", v, limit: l.hardMax, unit };
     if (l.hardMin != null && v < l.hardMin - 1e-9) return { kind: "hard", dir: "min", v, limit: l.hardMin, unit };
@@ -108,13 +134,39 @@ const Syringe = (() => {
     if (sc.id === "program") {
       const drug = it.drug;
       log("drugSelected", { ch: "A", drugId: drug.id, conc: concLabel(drug, concOf({ drug })), secondary: false });
-      S.draft = { drug, drugId: drug.id, weight: S.weight, dose: null, time: null, rate: null, vtbi: null, overrides: [], field: "weight" };
+      S.draft = { drug, drugId: drug.id, pm: null, weight: S.weight, dose: null, time: null, rate: null, vtbi: null, overrides: [], field: null };
       if (drug.highAlert) return go("advisory");
+      return toModes();
+    }
+    if (sc.id === "mode") {
+      const d = S.draft;
+      if (it.recall) {
+        const last = lastSettings[d.drugId];
+        if (!last) { flash("NO SETTINGS TO RECALL FOR THIS DRUG", "warn"); return emit(); }
+        Object.assign(d, JSON.parse(JSON.stringify(last)), { drug: d.drug, overrides: [] });
+        if (d.weight) S.weight = d.weight;
+        log("recall", { ch: "A", drugId: d.drugId, pm: d.pm });
+        return go("load");
+      }
+      Object.assign(d, { pm: it.pm, dose: null, time: null, rate: null, vtbi: null });
+      d.field = fields(d)[0];
+      log("syrMode", { ch: "A", pm: it.pm });
       return go("params");
     }
   }
 
-  function fields(d) { return isInt(d) ? ["weight", "dose", "time"] : ["weight", "dose"]; }
+  function toModes() {
+    const d = S.draft;
+    go("mode", { list: MODES.map((pm) => ({ label: modeLabel(pm, d.drug), pm })).concat([{ label: "RECALL LAST SETTINGS", recall: true }]), page: 0 });
+  }
+
+  function fields(d) {
+    if (d.pm === "mlhr") return ["rate"];
+    if (d.pm === "voltime") return ["vtbi", "time"];
+    const f = d.pm === "dosekg" ? ["weight", "dose"] : ["dose"];
+    if (isInt(d)) f.push("time");
+    return f;
+  }
 
   // ------------------------------------------------------------ keys
   function power() {
@@ -140,7 +192,7 @@ const Syringe = (() => {
     if (k === "START") return startKey();
     if (k === "BACK") return back();
     if (/^[0-9]$/.test(k) && sc.list) { if (+k >= 1) pickNumber(+k); return; }
-    if (sc.id === "advisory") { if (k === "ENTER") go("params"); return; }
+    if (sc.id === "advisory") { if (k === "ENTER") toModes(); return; }
     if (sc.id === "load") { if (k === "ENTER") { log("bedside", { ch: "A", action: "load" }); go("prime"); } return; }
     if (sc.id === "params" || sc.id === "chgDose") {
       if (/^[0-9.]$/.test(k)) {
@@ -158,10 +210,8 @@ const Syringe = (() => {
     if (S.buffer) { S.buffer = ""; return emit(); }
     if (sc.id === "category") return go("profile", { list: profileList(), page: 0 });
     if (sc.id === "program") return go("category", { list: categoryList(), page: 0 });
-    if (["advisory", "params"].includes(sc.id)) {
-      if (sc.id === "params") { const d = S.draft, i = fields(d).indexOf(d.field); if (i > 0) { d.field = fields(d)[i - 1]; return emit(); } }
-      return go("program", { list: programList(S.draft.drug.syrCat), page: 0, cat: S.draft.drug.syrCat });
-    }
+    if (sc.id === "params") { const d = S.draft, i = fields(d).indexOf(d.field); if (i > 0) { d.field = fields(d)[i - 1]; return emit(); } return toModes(); }
+    if (["advisory", "mode"].includes(sc.id)) return go("program", { list: programList(S.draft.drug.syrCat), page: 0, cat: S.draft.drug.syrCat });
     if (["load", "prime", "ready"].includes(sc.id)) { S.draft.field = fields(S.draft).slice(-1)[0]; return go("params"); }
     if (sc.id === "chgDose") return go("run");
     if (sc.id === "run") { flash(`PVD ${fmtNum(ch().primary ? ch().primary.given : 0, 3)} ML`); return emit(); }
@@ -179,7 +229,7 @@ const Syringe = (() => {
         const lim = limitCheck(d, v);
         if (lim) return limitScreen(lim, v, "params");
         d.dose = v;
-      } else d.time = v;
+      } else d[f] = v;
       recalc(d);
     }
     const fs = fields(d), i = fs.indexOf(f);
@@ -218,7 +268,7 @@ const Syringe = (() => {
     if (sc.id === "ready") return startInfusion();
     if (sc.id === "chgDose" && sc.pending != null) {
       const p = c.primary, from = { dose: p.dose, rate: p.rate };
-      p.dose = sc.pending; p.rate = r2(doseToRate(p.drug, concOf(p), p.dose, p.weight));
+      p.dose = sc.pending; p.rate = r2(doseToRate(effDrug(p), concOf(p), p.dose, p.weight));
       p.overrides = S.draft.overrides.slice();
       log("titrate", { ch: "A", drugId: p.drugId, fromDose: from.dose, toDose: p.dose, fromRate: from.rate, toRate: p.rate, state: c.state });
       return go("run");
@@ -229,9 +279,11 @@ const Syringe = (() => {
 
   function startInfusion() {
     const d = S.draft, c = ch();
-    const prog = { mode: "guardrails", drugId: d.drugId, drug: d.drug, conc: concOf(d), dose: d.dose, rate: d.rate, vtbi: d.vtbi, time: d.time, remaining: isInt(d) ? d.vtbi : 50, given: 0, weight: d.weight, overrides: d.overrides.slice(), syringe: syringeFor(d), int: isInt(d) };
+    const finite = isInt(d) || d.pm === "voltime";
+    const prog = { mode: "guardrails", pm: d.pm, drugId: d.drugId, drug: d.drug, conc: concOf(d), dose: d.dose, rate: d.rate, vtbi: d.vtbi, time: d.time, remaining: finite ? d.vtbi : 50, given: 0, weight: d.weight, overrides: d.overrides.slice(), syringe: syringeFor(d), int: finite };
     c.primary = prog; c.state = "running"; c.alarm = null;
-    log("start", { ch: "A", drugId: d.drugId, mode: "guardrails", profile: S.profile, concVol: concOf(d).vol, concAmt: concOf(d).amt, dose: d.dose, rate: d.rate, vtbi: d.vtbi, time: d.time, weight: d.weight, overrides: d.overrides.length, traced: true });
+    lastSettings[d.drugId] = { pm: d.pm, weight: d.weight, dose: d.dose, time: d.time, rate: d.rate, vtbi: d.vtbi, drugId: d.drugId };
+    log("start", { ch: "A", drugId: d.drugId, mode: "guardrails", pm: d.pm, profile: S.profile, concVol: concOf(d).vol, concAmt: concOf(d).amt, dose: d.dose, total: isInt(d) && isDoseMode(d) ? totalDose(d) : null, rate: d.rate, vtbi: d.vtbi, time: d.time, weight: d.pm === "dosekg" ? d.weight : null, overrides: d.overrides.length, traced: true });
     go("run");
   }
 
@@ -271,15 +323,22 @@ const Syringe = (() => {
 
   function rowsFor(d, active) {
     const val = (f, v, fmt) => (active === f && S.buffer !== "" ? (f === "time" ? fmtTime(parseTime(S.buffer)) : S.buffer) : v == null ? "---" : fmt(v));
-    const c = concOf(d);
-    const rows = [
-      { k: "CONC", v: concText(d.drug) },
-      { k: "WEIGHT", v: `${val("weight", d.weight, (x) => fmtNum(x, 3))} KG`, on: active === "weight" },
-      { k: "DOSE", v: `${val("dose", d.dose, (x) => fmtNum(x, 3))} ${doseUnit(d)}`, on: active === "dose", big: true, rev: d.overrides.length > 0 },
-    ];
-    if (isInt(d)) rows.push({ k: "TIME", v: val("time", d.time, fmtTime), on: active === "time" });
-    rows.push({ k: "RATE", v: d.rate != null ? `${fmtNum(d.rate, 3)} ML/HR` : "--- ML/HR" });
-    if (isInt(d) && d.vtbi != null) rows.push({ k: "VOLUME", v: `${fmtNum(d.vtbi, 3)} ML` });
+    const n3 = (x) => fmtNum(x, 3);
+    const rows = [{ k: "CONC", v: concText(d.drug) }, { k: "MODE", v: modeLabel(d.pm, d.drug) }];
+    if (d.pm === "mlhr") { rows.push({ k: "RATE", v: `${val("rate", d.rate, n3)} ML/HR`, on: active === "rate", big: true }); return rows; }
+    if (d.pm === "voltime") {
+      rows.push({ k: "VOLUME", v: `${val("vtbi", d.vtbi, n3)} ML`, on: active === "vtbi" }, { k: "TIME", v: val("time", d.time, fmtTime), on: active === "time" },
+        { k: "RATE", v: d.rate != null ? `${n3(d.rate)} ML/HR` : "--- ML/HR", big: true });
+      return rows;
+    }
+    if (d.pm === "dosekg") rows.push({ k: "WEIGHT", v: `${val("weight", d.weight, n3)} KG`, on: active === "weight" });
+    rows.push({ k: "DOSE", v: `${val("dose", d.dose, n3)} ${doseUnit(d)}`, on: active === "dose", big: true, rev: d.overrides.length > 0 });
+    if (isInt(d)) {
+      rows.push({ k: "TIME", v: val("time", d.time, fmtTime), on: active === "time" });
+      if (d.pm === "dosekg" && d.dose != null && d.weight) rows.push({ k: "TOTAL", v: `${n3(totalDose(d))} ${U(d.drug.dose.unit)}` });
+    }
+    rows.push({ k: "RATE", v: d.rate != null ? `${n3(d.rate)} ML/HR` : "--- ML/HR" });
+    if (isInt(d) && d.vtbi != null) rows.push({ k: "VOLUME", v: `${n3(d.vtbi)} ML` });
     return rows;
   }
 
@@ -292,10 +351,11 @@ const Syringe = (() => {
       case "profile": return Object.assign(base, { title: "SELECT PROFILE", unit: "" }, menuSpec("PRESS THE NUMBER TO SELECT"));
       case "category": return Object.assign(base, { title: SYR_PROFILES[S.profile].name }, menuSpec("PRESS THE NUMBER TO SELECT", K("CHG PROFILE", () => go("profile", { list: profileList(), page: 0 }))));
       case "program": return Object.assign(base, { title: sc.cat }, menuSpec("PRESS THE NUMBER TO SELECT", K("CHG PROFILE", () => go("profile", { list: profileList(), page: 0 }))));
+      case "mode": return Object.assign(base, { title: d.drug.prog }, menuSpec("SELECT INFUSION MODE - PRESS THE NUMBER"));
       case "advisory": return Object.assign(base, { title: d.drug.prog, msg: "HIGH ALERT MEDICATION<br>INDEPENDENT DOUBLE CHECK", prompt: "PRESS ENTER TO CONTINUE" });
       case "params": {
         const f = d.field;
-        const ask = { weight: "ENTER WEIGHT (KG)", dose: isInt(d) ? `ENTER DOSE (${U(d.drug.dose.unit)})` : `ENTER DOSE (${doseUnit(d)})`, time: "ENTER TIME (30 = 30 MIN, 100 = 1 HR)" }[f];
+        const ask = { weight: "ENTER WEIGHT (KG)", dose: `ENTER DOSE (${doseUnit(d)})`, time: "ENTER TIME (30 = 30 MIN, 100 = 1 HR)", rate: "ENTER RATE (ML/HR)", vtbi: "ENTER VOLUME (ML)" }[f];
         return Object.assign(base, { title: d.drug.prog, rows: rowsFor(d, f), prompt: `${ask} - PRESS ENTER` });
       }
       case "softMsg": return Object.assign(base, { title: d.drug.prog, msg: `DOSE ${sc.lim.dir === "max" ? "ABOVE" : "BELOW"} SOFT LIMIT<br>${fmtNum(sc.lim.v, 3)} ${sc.lim.unit} (LIMIT ${fmtNum(sc.lim.limit, 3)})<br>OVERRIDE?`, alert: "soft",
@@ -308,7 +368,7 @@ const Syringe = (() => {
         soft: [K("PRIME", () => { log("bedside", { ch: "A", action: "prime" }); flash("TUBING PRIMED"); go("ready"); }), null, null, K("SKIP", () => go("ready"))] });
       case "ready": return Object.assign(base, { title: d.drug.prog, rows: rowsFor(d, null), prompt: "PRESS <START> KEY TO BEGIN INFUSION", soft: [K("MAIN MENU", () => go("profile", { list: profileList(), page: 0 })), null, K("OPTIONS", options), null] });
       case "chgDose": return Object.assign(base, { title: c.primary.drug.prog, rows: [{ k: "CURRENT", v: `${fmtNum(c.primary.dose, 3)} ${doseUnit(c.primary)}` }, { k: "NEW DOSE", v: `${S.buffer !== "" ? S.buffer : sc.pending != null ? fmtNum(sc.pending, 3) : "---"} ${doseUnit(c.primary)}`, on: sc.pending == null, big: true },
-        { k: "NEW RATE", v: sc.pending != null ? `${fmtNum(r2(doseToRate(c.primary.drug, concOf(c.primary), sc.pending, c.primary.weight)), 3)} ML/HR` : "---" }],
+        { k: "NEW RATE", v: sc.pending != null ? `${fmtNum(r2(doseToRate(effDrug(c.primary), concOf(c.primary), sc.pending, c.primary.weight)), 3)} ML/HR` : "---" }],
         prompt: sc.pending != null ? "PRESS <START> TO CONFIRM NEW DOSE" : "ENTER NEW DOSE - PRESS ENTER", soft: [K("CANCEL", () => go("run")), null, null, null] });
       case "run": return runSpec(base);
     }
@@ -320,26 +380,25 @@ const Syringe = (() => {
   function runSpec(base) {
     const c = ch(), p = c.primary;
     if (!p) return base;
-    const rows = [
-      { k: "CONC", v: concText(p.drug) },
-      { k: "TVD", v: `${fmtNum(c.vi, 3)} ML` },
-      { k: "WEIGHT", v: `${fmtNum(p.weight, 3)} KG` },
-      { k: "DOSE", v: `${fmtNum(p.dose, 3)} ${doseUnit(p)}`, big: true, rev: p.overrides.length > 0 },
-      { k: "RATE", v: `${fmtNum(p.rate, 3)} ML/HR` },
-    ];
+    const dm = isDoseMode(p);
+    const rows = [{ k: "CONC", v: concText(p.drug) }, { k: "TVD", v: `${fmtNum(c.vi, 3)} ML` }];
+    if (p.pm === "dosekg") rows.push({ k: "WEIGHT", v: `${fmtNum(p.weight, 3)} KG` });
+    else rows.push({ k: "MODE", v: modeLabel(p.pm, p.drug) });
+    if (dm) rows.push({ k: "DOSE", v: `${fmtNum(p.dose, 3)} ${doseUnit(p)}`, big: true, rev: p.overrides.length > 0 }, { k: "RATE", v: `${fmtNum(p.rate, 3)} ML/HR` });
+    else rows.push({ k: "RATE", v: `${fmtNum(p.rate, 3)} ML/HR`, big: true });
     if (p.int) rows.push({ k: "TIME REMAINING", v: fmtTime(p.rate ? (p.remaining / p.rate) * 60 : 0) });
     const running = c.state === "running";
     return Object.assign(base, {
       title: p.drug.prog, rows, running, alarm: c.alarm,
       prompt: c.state === "paused" ? "PAUSED - PRESS <START> TO RESUME" : c.state === "complete" ? "PRESS STOP TO CLEAR" : "",
-      soft: running ? [K("LOCK", () => { flash("KEYPAD LOCK IS NOT USED IN PRACTICE"); emit(); }), p.int ? null : K("CHG DOSE", chgDose), K("OPTIONS", options), K("CLEAR TVD", () => { c.vi = 0; log("clearVolume"); emit(); })]
-        : [K("MAIN MENU", () => { c.primary = null; c.state = "idle"; go("profile", { list: profileList(), page: 0 }); }), p.int ? null : K("CHG DOSE", chgDose), K("OPTIONS", options), K("CLEAR TOTALS", () => { c.vi = 0; log("clearVolume"); emit(); })],
+      soft: running ? [K("LOCK", () => { flash("KEYPAD LOCK IS NOT USED IN PRACTICE"); emit(); }), p.int || !dm ? null : K("CHG DOSE", chgDose), K("OPTIONS", options), K("CLEAR TVD", () => { c.vi = 0; log("clearVolume"); emit(); })]
+        : [K("MAIN MENU", () => { c.primary = null; c.state = "idle"; go("profile", { list: profileList(), page: 0 }); }), p.int || !dm ? null : K("CHG DOSE", chgDose), K("OPTIONS", options), K("CLEAR TOTALS", () => { c.vi = 0; log("clearVolume"); emit(); })],
     });
   }
 
   function chgDose() {
     const p = ch().primary;
-    S.draft = { drug: p.drug, drugId: p.drugId, weight: p.weight, dose: p.dose, overrides: p.overrides.slice(), field: "dose" };
+    S.draft = { drug: p.drug, drugId: p.drugId, pm: p.pm, weight: p.weight, dose: p.dose, overrides: p.overrides.slice(), field: "dose" };
     go("chgDose", { pending: null });
   }
 
@@ -366,7 +425,7 @@ const Syringe = (() => {
       const drug = SYR_DRUGS[a.drugId], conc = drug.concs[0];
       S.profile = cfg.profile; S.weight = cfg.weight;
       const rate = r2(doseToRate(drug, conc, a.dose, S.weight));
-      ch().primary = { mode: "guardrails", drugId: a.drugId, drug, conc, dose: a.dose, rate, vtbi: 50, remaining: 30, given: 20, weight: S.weight, overrides: [], syringe: 60, int: false };
+      ch().primary = { mode: "guardrails", pm: "dosekg", drugId: a.drugId, drug, conc, dose: a.dose, rate, vtbi: 50, remaining: 30, given: 20, weight: S.weight, overrides: [], syringe: 60, int: false };
       ch().state = "running";
       S.screen = { id: "run" };
     } else S.screen = { id: "profile", list: profileList(), page: 0 };
