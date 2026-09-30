@@ -292,6 +292,35 @@ const PRACTICE = (() => {
     ],
   };
 
+  // Level 1 bank entry (level1.js) -> order object.
+  function bankOrder(b) {
+    const spec = "medsurg", [name, age, weight] = b.pt;
+    const p = { name, age: `${age} y`, weight, mrn: String(randInt(400000, 899999)), unit: UNIT[spec] };
+    const hm = (min) => (min >= 60 ? `${Math.floor(min / 60)}${String(min % 60).padStart(2, "0")}` : String(min));
+    let o;
+    if (b.t === "p") {
+      const d = profileDrug(spec, b.f), ci = d.concs.findIndex((c) => c.vol === b.bag);
+      const vtbi = b.vol || b.bag, rate = b.rate || r1(b.vol / b.hrs);
+      o = { spec, kind: "primary", drugId: b.f, concIdx: ci, rate, vtbi, patient: p,
+        text: b.rate
+          ? `<b>${d.name}</b> IV at <b>${rate} mL/hr</b>. Bag on hand: ${b.bag} mL.<br><span class="policy">${b.dx}.</span>`
+          : `<b>${d.name} ${b.vol} mL</b> IV over <b>${durText(b.hrs * 60)}</b>. Bag on hand: ${b.bag} mL.<br><span class="policy">${b.dx}.</span>`,
+        math: b.rate ? `Rate-based fluid: RATE ${rate} mL/h, VTBI ${vtbi} mL (the bag volume).` : `${b.vol} mL ÷ ${b.hrs} h = <b>${fmtNum(rate, 1)} mL/h</b>. VTBI ${vtbi} mL.`,
+        steps: [`CHANNEL SELECT → Guardrails IV Fluids → ${d.name}${d.concs.length > 1 ? ` → ${b.bag} mL` : ""} → Yes`, `RATE ${fmtNum(rate, 1)} → VTBI ${vtbi} → START`] };
+    } else {
+      const d = profileDrug(spec, b.d), c = d.concs[b.c], pf = profileDrug(spec, b.pf);
+      const rate = r1(c.vol / (b.min / 60));
+      o = { spec, kind: "secondary", drugId: b.d, concIdx: b.c, rate, vtbi: c.vol, patient: p, minutes: b.min, primary: { drugId: b.pf, rate: b.pr },
+        text: `<b>${d.name} ${fmtNum(c.amt, 3)} ${c.unit}</b> IVPB in ${fmtNum(c.vol)} mL, infuse over <b>${durText(b.min)}</b>.<br><span class="policy">${b.dx}. ${pf.name} is running on Channel A at ${b.pr} mL/hr. The secondary bag is hung above the primary with its clamp open.</span>`,
+        math: `${fmtNum(c.vol)} mL ÷ ${r2(b.min / 60)} h = <b>${fmtNum(rate, 1)} mL/h</b>. VTBI = ${fmtNum(c.vol)} mL. (Or type DURATION ${hm(b.min)}.)`,
+        steps: [`CHANNEL SELECT on A → SECONDARY → ${d.name}${d.concs.length > 1 ? ` → ${concLabel(d, c)}` : ""} → Yes`, `VTBI is pre-filled (${fmtNum(c.vol)}). DURATION ${hm(b.min)} (${durText(b.min)}) → START`] };
+    }
+    o.profile = spec;
+    o.drug = profileDrug(spec, o.drugId);
+    o.conc = o.drug.concs[o.concIdx];
+    return o;
+  }
+
   // opts.noHold: the pump has no dose limits, so skip orders that rely on a hard-limit alert.
   function newOrder(filter, opts = {}) {
     for (let i = 0; i < 80; i++) {
@@ -600,5 +629,5 @@ const PRACTICE = (() => {
     return [profStep, lib, syr, `${wt} → DOSE <b>${fmtNum(o.dose, 3)}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`, prime];
   }
 
-  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps, syringeOrder, syrSteps };
+  return { SPECIALTIES, newOrder, bankOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps, syringeOrder, syrSteps };
 })();
