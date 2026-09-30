@@ -905,7 +905,7 @@
       }
       const newStart = DEV !== "syr" && (o.kind === "primary" || o.kind === "hold");
       body = `<p class="pr-help">${newStart ? "Start with <b>New Patient? Yes</b> and select the unit. " : ""}${help}</p>
-        <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
+        <div class="pr-actions">${scn.bank ? "" : `<button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>`}${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
         ${X.showAnswer ? `<div class="pr-answer"><ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
     }
     const head = scn.quiz
