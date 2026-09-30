@@ -384,16 +384,18 @@ const PRACTICE = (() => {
     return { ok: all.every((i) => i.ok), items: all };
   }
 
-  const SYR_MODE_NAMES = { mlhr: "mL/hr", voltime: "Volume/time", dose: "Dose/time", dosekg: "Dose/kg" };
+  const SYR_MODE_NAMES = { mlhr: "mL/hr", voltime: "Volume/time", dose: "Drug library (dose)", dosekg: "Drug library (dose/kg)" };
   function gradeSyringe(e, o) {
-    const d = o.drug, prof = SYR_PROFILES[o.syrProfile], int = d.mode === "int";
-    // Drips need the weight-based dose mode; intermittent doses need a dose mode
-    // (dose/time or dose/kg) so the library can check the dose.
-    // Drips: weight-based dose mode. Intermittent doses: volume/time or a dose mode.
-    const modeOk = int ? ["voltime", "dose", "dosekg"].includes(e.pm) : e.pm === "dosekg";
-    const items = [{ label: "Infusion mode", ok: modeOk, want: int ? "Volume/time, Dose/time or Dose/kg" : `Dose/kg/${d.dose.time === "min" ? "min" : "hr"}`, got: SYR_MODE_NAMES[e.pm] || "—" }];
-    if (e.pm === "dose" || e.pm === "dosekg") items.push({ label: "Drug program", ok: e.drugId === o.drugId, want: d.prog, got: SYR_DRUGS[e.drugId] ? SYR_DRUGS[e.drugId].prog : "—" });
-    if (e.pm === "dosekg") items.push({ label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
+    const d = o.drug, int = d.mode === "int";
+    const pn = (id) => (SYR_PROFILES[id] ? SYR_PROFILES[id].name : "—");
+    // Drips: the library program (dose/kg). Intermittent doses: the library program or volume/time.
+    const modeOk = int ? ["voltime", "dose"].includes(e.pm) : e.pm === "dosekg";
+    const items = [
+      { label: "Profile", ok: e.profile === o.syrProfile, want: pn(o.syrProfile), got: pn(e.profile) },
+      { label: "Infusion mode", ok: modeOk, want: int ? "Drug library program or Volume/time" : `Drug library program (dose/kg/${d.dose.time === "min" ? "min" : "hr"})`, got: SYR_MODE_NAMES[e.pm] || "—" }];
+    const lib = e.pm === "dose" || e.pm === "dosekg";
+    if (lib) items.push({ label: "Drug program", ok: e.drugId === o.drugId, want: d.prog, got: SYR_DRUGS[e.drugId] ? SYR_DRUGS[e.drugId].prog : "—" },
+      { label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" });
     if (o.syrSize) items.push(
       { label: "Syringe type", ok: e.syrType === o.syrBrand.toUpperCase(), want: o.syrBrand, got: e.syrType || "—" },
       { label: "Syringe size", ok: e.syrSize === o.syrSize, want: `${o.syrSize} mL`, got: e.syrSize ? `${e.syrSize} mL` : "—" });
@@ -512,7 +514,7 @@ const PRACTICE = (() => {
     return ids[0];
   };
   function syrContinuous(kind) {
-    const unit = pick(["NICU", "PICU", "PICU", "General Peds"]);
+    const unit = pick(["NICU", "PICU", "PICU", "AcuteCare"]);
     const table = kind === "hold" ? SYR_HOLD : SYR_CONT;
     const ids = Object.keys(table).filter((id) => profFor(unit, "cont", id));
     if (!ids.length) return null;
@@ -537,7 +539,7 @@ const PRACTICE = (() => {
     return o;
   }
   function syrIntermittent() {
-    const unit = pick(["NICU", "PICU", "General Peds"]);
+    const unit = pick(["NICU", "PICU", "AcuteCare"]);
     const ids = Object.keys(SYR_INT).filter((id) => profFor(unit, "int", id));
     if (!ids.length) return null;
     const drugId = pick(ids), d = SYR_DRUGS[drugId], c = d.concs[0];
@@ -574,22 +576,26 @@ const PRACTICE = (() => {
   }
 
   function syrSteps(o) {
-    const d = o.drug;
-    const cats = []; Object.values(SYR_DRUGS).forEach((x) => { if (!cats.includes(x.syrCat)) cats.push(x.syrCat); }); cats.sort();
-    const progs = Object.values(SYR_DRUGS).filter((x) => x.syrCat === d.syrCat).map((x) => x.id);
-    const kgLabel = d.mode === "int" ? "DOSE/KG" : `DOSE/KG/${d.dose.time === "min" ? "MIN" : "HR"}`;
-    const lib = `Category <b>${cats.indexOf(d.syrCat) + 1}</b> (${d.syrCat}) → Program <b>${progs.indexOf(o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → CONFIRM (high-alert advisory)" : ""}`;
+    const d = o.drug, prof = SYR_PROFILES[o.syrProfile], w = o.patient.weight;
+    const pi = Object.keys(SYR_PROFILES).indexOf(o.syrProfile);
+    const profStep = `Profile: ${pi >= 8 ? "<b>MORE</b> → " : ""}<b>${(pi % 8) + 1}</b> (${prof.name.toUpperCase()})`;
+    // Library letter group, then the program's number inside it.
+    const groups = [["A", "B"], ["C", "D"], ["E", "G"], ["H", "L"], ["M", "O"], ["P", "R"], ["S", "Z"]];
+    const first = (x) => x.prog.replace(/[^A-Z]/gi, "").charAt(0).toUpperCase();
+    const gi = groups.findIndex(([a, z]) => first(d) >= a && first(d) <= z);
+    const inGroup = prof.drugs.map((id) => SYR_DRUGS[id]).filter((x) => first(x) >= groups[gi][0] && first(x) <= groups[gi][1]).sort((a, b) => a.prog.localeCompare(b.prog));
+    const lib = `Library <b>${gi + 1}</b> (${groups[gi].join("-")}) → program <b>${inGroup.findIndex((x) => x.id === o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → <b>CONFIRM</b> (high-alert advisory)" : ""}`;
     const brand = ["B-D", "Monoject", "Terumo"].indexOf(o.syrBrand) + 1;
     const syr = o.syrSize ? `Read the syringe on the pump (<b>${o.syrBrand} ${o.syrSize} mL</b>): syringe type <b>${brand}</b> → <b>LOAD SYRINGE</b>${o.syrSize <= 3 ? ` → pick <b>${o.syrSize} ML</b> → <b>CONFIRM</b>` : " → size recognized → <b>CONFIRM</b>"}` : "";
+    const wt = `WEIGHT <b>${w}</b> → ENTER → RE-ENTER WEIGHT <b>${w}</b> → ENTER`;
     const prime = "Prompt alternates START / BOLUS: press <b>BOLUS</b>, press and hold BOLUS until fluid reaches the end of the tubing, <b>EXIT</b> → press <b>START</b>";
+    const hm = (m) => (m >= 60 ? `${Math.floor(m / 60)}${String(m % 60).padStart(2, "0")}` : m);
     if (o.kind === "titrate") return ["Press the <b>CHG DOSE</b> soft key", `Type <b>${fmtNum(o.dose, 3)}</b> → ENTER (new rate ${fmtNum(o.rate, 2)} mL/h)`, "Press <b>START</b> to confirm the new dose"];
-    if (o.kind === "hold") return [`Mode <b>4</b> (DOSE/KG) → ${lib}`, syr, `WEIGHT ${o.patient.weight} → ENTER → DOSE ${fmtNum(o.dose, 3)} → ENTER: the pump shows the hard limit`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
-    if (d.mode === "int") return [
-      `Mode <b>2</b> (VOLUME/TIME) → ${syr}`,
-      `VOLUME <b>${fmtNum(o.vtbi, 3)}</b> mL (${fmtNum(o.dose, 3)} ${d.dose.unit} ÷ ${concPerMlLabel(o.conc)}) → ENTER → TIME <b>${o.minutes >= 60 ? `${Math.floor(o.minutes / 60)}${String(o.minutes % 60).padStart(2, "0")}` : o.minutes}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`,
-      `Or: mode <b>4</b> (DOSE/KG) → ${lib} → WEIGHT ${o.patient.weight} → DOSE ${fmtNum(o.perKgDose, 3)} ${d.dose.unit}/kg → TIME`,
+    if (o.kind === "hold") return [profStep, lib, syr, `${wt} → DOSE ${fmtNum(o.dose, 3)} → ENTER: the pump shows the hard limit`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
+    if (d.mode === "int") return [profStep, lib, syr,
+      `${wt} → DOSE <b>${fmtNum(o.dose, 3)}</b> ${d.dose.unit} → ENTER → TIME <b>${hm(o.minutes)}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`,
       prime, "When it finishes: <b>STOP</b> → flush the line if ordered"];
-    return [`Mode <b>4</b> (${kgLabel}) → ${lib}`, syr, `WEIGHT <b>${o.patient.weight}</b> → ENTER → DOSE <b>${fmtNum(o.dose, 3)}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`, prime];
+    return [profStep, lib, syr, `${wt} → DOSE <b>${fmtNum(o.dose, 3)}</b> → ENTER (rate ${fmtNum(o.rate, 2)} mL/h)`, prime];
   }
 
   return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps, syringeOrder, syrSteps };

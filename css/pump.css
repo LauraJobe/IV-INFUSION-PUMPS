@@ -825,3 +825,17 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .sy-syringe.none { visibility: hidden; }
 .sy-syringe.out { transform: translateY(-14px) rotate(-2deg); opacity: .9; }
 .sy-syringe { transition: transform .4s; }
+
+/* Syringe pump: prompt bar with the profile boxed, one-column lists, number entry */
+.sys-head { display: flex; align-items: center; gap: 6px; background: #1b2a17; color: #a9da96; padding: 3px 4px 3px 6px; font-size: 10.5px; letter-spacing: .02em; }
+.sys-head span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-head i, .sys-top .pbox { font-style: normal; border: 1.5px solid currentColor; padding: 0 4px; font-size: 10px; white-space: nowrap; }
+.sys-menu.one { grid-template-columns: 1fr; }
+.sys-menu { margin-top: 3px; }
+.sys-entry { display: grid; grid-template-columns: 1fr 1.3fr; grid-template-areas: "et et" "lim in" "cur cur"; gap: 4px 10px; align-items: center; font-size: 11.5px; }
+.sys-entry .et { grid-area: et; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-entry .lim { grid-area: lim; display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; }
+.sys-entry .lim b { text-align: right; }
+.sys-entry .in { grid-area: in; display: flex; align-items: center; gap: 6px; }
+.sys-entry .in b { flex: 1; border: 2px solid #1b2a17; padding: 2px 6px; font-size: 20px; text-align: right; min-height: 30px; background: rgba(255, 255, 255, .15); }
+.sys-entry .cur { grid-column: 1 / -1; font-size: 10.5px; }

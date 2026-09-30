@@ -363,13 +363,26 @@ const SYR_DRUGS = {
 };
 // Intermittent limits are per kg per dose.
 Object.values(SYR_DRUGS).forEach((d) => { if (d.mode === "int") d.limitsPerKg = true; });
+// The pump's care-area profiles, in the order the pump lists them. "box" is the
+// short name shown in the box at the top right of the screen; wt = the weight
+// limits (kg) for the profile.
 const SYR_PROFILES = {
-  nicuInt: { name: "NICU INTERMITTENT", unit: "NICU", mode: "int", drugs: ["syr_ampicillin", "syr_gentamicin", "syr_vancomycin", "syr_acyclovir", "syr_calcium"] },
-  nicuCont: { name: "NICU CONTINUOUS", unit: "NICU", mode: "cont", drugs: ["syr_fentanyl", "syr_morphine", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_insulin", "syr_heparin"] },
-  picuInt: { name: "PICU INTERMITTENT", unit: "PICU", mode: "int", drugs: ["syr_cefoxitin", "syr_vancomycin", "syr_ampicillin", "syr_acyclovir", "syr_calcium", "syr_kcl"] },
-  picuCont: { name: "PICU CONTINUOUS", unit: "PICU", mode: "cont", drugs: ["syr_fentanyl", "syr_morphine", "syr_midazolam", "syr_dexmed", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_milrinone", "syr_insulin", "syr_heparin"] },
-  genPeds: { name: "GENERAL PEDS", unit: "General Peds", mode: "both", drugs: ["syr_cefoxitin", "syr_ampicillin", "syr_vancomycin", "syr_morphine", "syr_kcl", "syr_heparin"] },
+  anesCard: { name: "Anesthesia Cardiac", box: "ANES CARD", unit: "Anesthesia", mode: "both", wt: [1, 250], drugs: ["syr_fentanyl", "syr_midazolam", "syr_dexmed", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_milrinone", "syr_heparin", "syr_insulin"] },
+  anesGen: { name: "Anesthesia General", box: "ANES GEN", unit: "Anesthesia", mode: "both", wt: [1, 250], drugs: ["syr_fentanyl", "syr_morphine", "syr_midazolam", "syr_dexmed", "syr_epinephrine", "syr_cefoxitin", "syr_ampicillin", "syr_vancomycin"] },
+  picuCont: { name: "PICU/CCU Continuous", box: "PICU CONT", unit: "PICU", mode: "cont", wt: [0.25, 250], drugs: ["syr_fentanyl", "syr_morphine", "syr_midazolam", "syr_dexmed", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_milrinone", "syr_insulin", "syr_heparin"] },
+  picuInt: { name: "PICU/CCU Intermittent", box: "PICU INT", unit: "PICU", mode: "int", wt: [0.25, 250], drugs: ["syr_cefoxitin", "syr_vancomycin", "syr_ampicillin", "syr_acyclovir", "syr_calcium", "syr_kcl"] },
+  nicuCont: { name: "NICU Continuous", box: "NICU CONT", unit: "NICU", mode: "cont", wt: [0.25, 15], drugs: ["syr_fentanyl", "syr_morphine", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_insulin", "syr_heparin"] },
+  nicuInt: { name: "NICU Intermittent", box: "NICU INT", unit: "NICU", mode: "int", wt: [0.25, 15], drugs: ["syr_ampicillin", "syr_gentamicin", "syr_vancomycin", "syr_acyclovir", "syr_calcium"] },
+  hemeCont: { name: "Heme/Onc Continuous", box: "HEME CONT", unit: "Heme/Onc", mode: "cont", wt: [0.25, 250], drugs: ["syr_fentanyl", "syr_morphine", "syr_heparin", "syr_insulin"] },
+  hemeInt: { name: "Heme/Onc Intermittent", box: "HEME INT", unit: "Heme/Onc", mode: "int", wt: [0.25, 250], drugs: ["syr_cefoxitin", "syr_vancomycin", "syr_acyclovir", "syr_calcium", "syr_kcl"] },
+  acuteCont: { name: "AcuteCare Continuous", box: "ACUTE CONT", unit: "AcuteCare", mode: "cont", wt: [0.25, 250], drugs: ["syr_morphine", "syr_heparin", "syr_insulin"] },
+  acuteInt: { name: "AcuteCare Intermittent", box: "ACUTE INT", unit: "AcuteCare", mode: "int", wt: [0.25, 250], drugs: ["syr_cefoxitin", "syr_ampicillin", "syr_vancomycin", "syr_acyclovir", "syr_kcl"] },
+  transNeo: { name: "Transport Neo/Peds", box: "TRANS PEDS", unit: "Transport", mode: "both", wt: [0.25, 150], drugs: ["syr_fentanyl", "syr_morphine", "syr_dopamine", "syr_epinephrine", "syr_ampicillin", "syr_gentamicin"] },
+  transAdult: { name: "Transport Adult", box: "TRANS ADULT", unit: "Transport", mode: "both", wt: [1, 250], drugs: ["syr_fentanyl", "syr_midazolam", "syr_dopamine", "syr_epinephrine", "syr_heparin"] },
+  erInt: { name: "ER Intermittent", box: "ER INT", unit: "ER", mode: "int", wt: [0.25, 250], drugs: ["syr_cefoxitin", "syr_ampicillin", "syr_vancomycin", "syr_acyclovir", "syr_calcium", "syr_kcl"] },
 };
+// Blood products (every profile): run as volume/time programs.
+const SYR_BLOOD = ["Blood - Cryoprecipitate", "Blood - FFP", "Blood - Platelets", "Blood - PRBC (First 15 min)", "Blood - PRBC (Remainder)", "Blood - WBC"];
 Object.keys(SYR_DRUGS).forEach((id) => { SYR_DRUGS[id].id = id; DRUGS[id] = SYR_DRUGS[id]; });
 
 // Returns the drug as configured in a profile (base entry + overrides).
