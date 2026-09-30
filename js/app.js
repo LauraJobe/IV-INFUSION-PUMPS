@@ -308,7 +308,7 @@
     if (DEV === "sq") tone(1000, 0.09, 0, 0.07, 0.12);
     else if (DEV === "plum") tone(2877, 0.05, 0, 0.05);
     else if (DEV === "space") tone(3915, 0.06, 0, 0.04);
-    else if (DEV === "syr") tone(717, 0.06, 0, 0.06, 0.1);
+    else if (DEV === "syr") tone(2000, 0.05, 0, 0.05);
     else tone(1200, 0.1, 0, 0.07, 0.16);
     buzz(20);
   }
@@ -423,20 +423,22 @@
     buzz([100, 30, 130, 30, 110], lead * 1000);
   }
 
-  // Syringe pump: alarm (not in the recording) = three 717 Hz beeps every 3 s;
-  // programming not started = one short beep every 1.5 s.
+  // Syringe pump alarms (measured from a recording; occlusion, near empty and
+  // infusion complete all use it): a 962 Hz tone for about 1 s, then a louder
+  // 719 Hz tone for about 0.9 s, repeating every 5.2 s.
+  // Programming not started: one short beep every 1.5 s.
   function syrAlarmAudio(S) {
     const a = S.channels.A.alarm, now = Date.now();
     if (!a) {
-      if (Syringe.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(717, 0.12, 0, 0.05, 0.1); }
+      if (Syringe.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(719, 0.12, 0, 0.05, 0.1); }
       return;
     }
-    const next = lastBeep + 3000;
+    const next = lastBeep + 5200;
     if (now < next - 260) return;
     const lead = now < next ? (next - now) / 1000 : 0;
     lastBeep = now < next + 260 ? next : now;
-    [0, 0.3, 0.6].forEach((t) => tone(717, 0.2, lead + t, 0.08, 0.12));
-    buzz([200, 100, 200, 100, 200], lead * 1000);
+    tone(962, 1.04, lead, 0.05, 0.3); tone(719, 0.93, lead + 1.05, 0.09, 0.15);
+    buzz([1000, 50, 900], lead * 1000);
   }
 
   // ------------------------------------------------------------ render syringe pump
@@ -1013,7 +1015,7 @@
     }
     return e.type;
   }
-  const ALARM_TEXT = { air: "air in line", patientOcc: "patient side occlusion", fluidOcc: "fluid side occlusion", complete: "infusion complete", secComplete: "secondary complete", paused: "paused too long" };
+  const ALARM_TEXT = { air: "air in line", patientOcc: "patient side occlusion", fluidOcc: "fluid side occlusion", complete: "infusion complete", near: "near empty / near end of infusion", secComplete: "secondary complete", paused: "paused too long" };
   const BEDSIDE_TEXT = {
     prime: () => "spiked and primed bag", load: () => "set loaded, door closed", unload: () => "door opened", trace: () => "line traced",
     clamp: (e) => `roller clamp ${e.clampOpen ? "opened" : "closed"}`, fixOcclusion: () => "site checked, line straightened", clearAir: () => "air cleared",

@@ -18,6 +18,7 @@ const Syringe = (() => {
   const BRANDS = ["B-D", "MONOJECT", "TERUMO"];
   const PER_PAGE = 8;
   const PRIME_ML_PER_S = 0.25;
+  const NEAR_MIN = 5;
   let S;
   const listeners = [];
   let bootTimer = null;
@@ -202,7 +203,11 @@ const Syringe = (() => {
   function key(k) {
     if (!S.on || S.screen.id === "boot") return;
     const sc = S.screen, c = ch();
-    if (k === "SILENCE") { S.silencedUntil = Date.now() + 120000; log("silence"); return emit(); }
+    if (k === "SILENCE") {
+      // A near-empty warning is cleared by SILENCE; other alarms are quiet for 2 min.
+      if (c.alarm && c.alarm.level === "low") { c.alarm = null; log("silence"); return emit(); }
+      S.silencedUntil = Date.now() + 120000; log("silence"); return emit();
+    }
     if (k === "BOLUS") {
       if (sc.id === "ready") return go("prime");
       if (sc.id === "prime") return;
@@ -378,6 +383,12 @@ const Syringe = (() => {
     if (p && c.state === "running") {
       const v = Math.min(p.rate * dt / 3600, p.remaining);
       p.remaining -= v; p.given += v; c.vi += v;
+      // Near-empty warning: 5 min or less left; the infusion keeps running.
+      if (!p.nearWarned && p.pm !== "flush" && p.rate && ((p.remaining + p.given) / p.rate) * 60 > 2 * NEAR_MIN && (p.remaining / p.rate) * 60 <= NEAR_MIN && p.remaining > 0.00001) {
+        p.nearWarned = true;
+        c.alarm = { type: "near", msg: p.int ? "NEAR END OF INFUSION" : "SYRINGE NEAR EMPTY", level: "low" };
+        S.silencedUntil = 0; log("alarm", { ch: "A", alarm: "near" });
+      }
       if (p.remaining <= 0.00001) {
         const msg = p.pm === "flush" ? "FLUSH COMPLETE" : p.int ? "INFUSION COMPLETE" : "SYRINGE EMPTY";
         c.state = "complete"; c.alarm = { type: "complete", msg, level: "high" };
@@ -487,7 +498,7 @@ const Syringe = (() => {
     const canChg = dm && !p.int;
     return Object.assign(base, {
       title: titleOf(p), rows, running, alarm: c.alarm,
-      prompt: c.state === "paused" ? "PAUSED - PRESS START TO RESUME" : c.state === "complete" ? "PRESS STOP TO CONTINUE" : "",
+      prompt: c.state === "paused" ? "PAUSED - PRESS START TO RESUME" : c.state === "complete" ? "PRESS STOP TO CONTINUE" : c.alarm && c.alarm.level === "low" ? "PRESS SILENCE TO ACKNOWLEDGE" : "",
       soft: running ? [K("LOCK", () => { flash("KEYPAD LOCK IS NOT USED IN PRACTICE"); emit(); }), canChg ? K("CHG DOSE", chgDose) : null, K("OPTIONS", options), K("CLEAR TVD", () => { c.vi = 0; log("clearVolume"); emit(); })]
         : [K("MAIN MENU", () => { c.primary = null; c.state = "idle"; toModes(); }), canChg ? K("CHG DOSE", chgDose) : null, K("OPTIONS", options), K("CLEAR TOTALS", () => { c.vi = 0; log("clearVolume"); emit(); })],
     });
