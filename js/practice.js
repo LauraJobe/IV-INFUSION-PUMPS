@@ -354,6 +354,7 @@ const PRACTICE = (() => {
     const type = o.kind === "secondary" ? "startSecondary" : "start";
     const e = find(type) || (o.kind === "secondary" ? find("start") : null);
     if (!e) return null;
+    if (e.pump === "syr") return gradeSyringe(e, o);
     const items = [];
     const plum = e.pump === "plum";
     if (e.type !== type) items.push(plum
@@ -375,6 +376,21 @@ const PRACTICE = (() => {
     rows.push(["Rate", e.rate, o.rate, "mL/h"], ["VTBI", e.vtbi, o.vtbi, "mL"]);
     const g = grade(rows);
     const all = items.concat(g.items);
+    if (e.overrides) all.push({ label: "No soft-limit override needed", ok: false, want: "No override", got: "Overrode a soft limit" });
+    return { ok: all.every((i) => i.ok), items: all };
+  }
+
+  function gradeSyringe(e, o) {
+    const d = o.drug, prof = SYR_PROFILES[o.syrProfile];
+    const items = [
+      { label: "Profile", ok: e.profile === o.syrProfile, want: prof.name, got: SYR_PROFILES[e.profile] ? SYR_PROFILES[e.profile].name : "—" },
+      { label: "Drug program", ok: e.drugId === o.drugId, want: d.prog, got: SYR_DRUGS[e.drugId] ? SYR_DRUGS[e.drugId].prog : "—" },
+      { label: "Patient weight", ok: close(e.weight, o.patient.weight), want: `${o.patient.weight} kg`, got: e.weight ? `${e.weight} kg` : "—" },
+    ];
+    const rows = [["Dose", e.dose, o.dose, d.mode === "int" ? d.dose.unit : doseUnitLabel(d)]];
+    if (d.mode === "int") rows.push(["Time", e.time, o.minutes, "min"]);
+    rows.push(["Rate", e.rate, o.rate, "mL/h"]);
+    const all = items.concat(grade(rows).items);
     if (e.overrides) all.push({ label: "No soft-limit override needed", ok: false, want: "No override", got: "Overrode a soft limit" });
     return { ok: all.every((i) => i.ok), items: all };
   }
@@ -459,5 +475,100 @@ const PRACTICE = (() => {
     return steps;
   }
 
-  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps };
+  // ---------------------------------------------------------------- syringe pump orders
+  const SYR_CONT = {
+    syr_fentanyl: [0.5, 1, 1.5, 2], syr_morphine: [10, 20, 30], syr_midazolam: [0.05, 0.1, 0.15], syr_dexmed: [0.3, 0.5, 0.8],
+    syr_dobutamine: [5, 7.5, 10], syr_dopamine: [5, 7.5, 10], syr_epinephrine: [0.05, 0.1, 0.2], syr_milrinone: [0.25, 0.5, 0.75],
+    syr_insulin: [0.05, 0.1], syr_heparin: [10, 15, 20],
+  };
+  const SYR_INT = {
+    syr_ampicillin: [[25, 50, 100], [15, 30]], syr_cefoxitin: [[30, 40], [30]], syr_vancomycin: [[10, 15], [60]], syr_gentamicin: [[4, 5], [30]],
+    syr_acyclovir: [[10, 20], [60]], syr_calcium: [[50, 100], [30, 60]], syr_kcl: [[0.5, 1], [60, 120]],
+  };
+  const SYR_HOLD = { syr_fentanyl: [6, 8], syr_dopamine: [25, 30], syr_milrinone: [1.5, 2], syr_heparin: [50, 60] };
+
+  function syrPatient(unit) {
+    if (unit === "NICU") {
+      const w = randInt(6, 40) / 10;
+      return { name: `Baby ${pick(["Girl", "Boy"])} ${pick(LAST)}`, age: `${randInt(1, 40)} days (${randInt(26, 40)} wk GA)`, weight: w };
+    }
+    const w = randInt(5, 40);
+    return { name: `${pick(KID_FIRST)} ${pick(LAST)}`, age: w < 10 ? `${randInt(6, 18)} months` : `${Math.max(2, Math.round((w - 8) / 2))} y`, weight: w };
+  }
+  const profFor = (unit, mode, drugId) => {
+    const ids = Object.keys(SYR_PROFILES).filter((pid) => SYR_PROFILES[pid].unit === unit && (SYR_PROFILES[pid].mode === mode || SYR_PROFILES[pid].mode === "both") && SYR_PROFILES[pid].drugs.includes(drugId));
+    return ids[0];
+  };
+  function syrContinuous(kind) {
+    const unit = pick(["NICU", "PICU", "PICU", "General Peds"]);
+    const table = kind === "hold" ? SYR_HOLD : SYR_CONT;
+    const ids = Object.keys(table).filter((id) => profFor(unit, "cont", id));
+    if (!ids.length) return null;
+    const drugId = pick(ids), d = SYR_DRUGS[drugId], c = d.concs[0];
+    const p = syrPatient(unit);
+    let dose = pick(table[drugId]), fromDose = null;
+    if (kind === "titrate") {
+      const opts = SYR_CONT[drugId];
+      if (opts.length < 2) return null;
+      const i = randInt(0, opts.length - 2);
+      [fromDose, dose] = Math.random() < 0.6 ? [opts[i], opts[i + 1]] : [opts[i + 1], opts[i]];
+    }
+    const rate = r2(doseToRate(d, c, dose, p.weight));
+    if (rate < 0.1 || rate > 100) return null;
+    const u = doseUnitLabel(d);
+    const o = { spec: unit, kind, drugId, concIdx: 0, dose, rate, vtbi: null, patient: p, perKg: true, syr: true, syrProfile: profFor(unit, "cont", drugId), fromDose,
+      text: kind === "titrate"
+        ? `<b>${d.name} (${d.prog.toLowerCase().replace(/ml/g, "mL")})</b> is running at ${fmtNum(fromDose, 3)} ${u}.<br>New order: <b>${dose > fromDose ? "Increase" : "Decrease"} to ${fmtNum(dose, 3)} ${u}</b>.`
+        : `<b>${d.name}</b> continuous infusion at <b>${fmtNum(dose, 3)} ${u}</b>. Syringe: ${d.prog.toLowerCase().replace(/ml/g, "mL")}.`,
+      math: `${doseMath(d, c, dose, p.weight, rate)}.${kind === "titrate" ? " Use CHG DOSE, then START." : ""}` };
+    if (kind === "hold") o.math = `${fmtNum(dose, 3)} ${u} is above the hard limit of ${fmtNum(d.limits.hardMax, 3)} ${u}. The pump will not accept it. Hold and clarify the order.`;
+    return o;
+  }
+  function syrIntermittent() {
+    const unit = pick(["NICU", "PICU", "General Peds"]);
+    const ids = Object.keys(SYR_INT).filter((id) => profFor(unit, "int", id));
+    if (!ids.length) return null;
+    const drugId = pick(ids), d = SYR_DRUGS[drugId], c = d.concs[0];
+    const p = syrPatient(unit);
+    const perKg = pick(SYR_INT[drugId][0]), minutes = pick(SYR_INT[drugId][1]);
+    const dose = r2(perKg * p.weight);
+    const vol = Math.round((dose / (c.amt / c.vol)) * 1000) / 1000;
+    const rate = r2(vol / (minutes / 60));
+    if (rate < 0.1) return null;
+    const u = d.dose.unit;
+    return { spec: unit, kind: "primary", drugId, concIdx: 0, dose, rate, vtbi: vol, minutes, patient: p, perKg: true, syr: true, syrProfile: profFor(unit, "int", drugId),
+      text: `<b>${d.name} ${fmtNum(dose, 3)} ${u}</b> (${fmtNum(perKg, 3)} ${u}/kg) IV over <b>${durText(minutes)}</b>. Syringe: ${d.prog.toLowerCase().replace(/ml/g, "mL")}.`,
+      math: `${fmtNum(perKg, 3)} ${u}/kg × ${p.weight} kg = <b>${fmtNum(dose, 3)} ${u}</b> ÷ ${fmtNum(c.amt / c.vol, 3)} ${u}/mL = ${fmtNum(vol, 3)} mL ÷ ${r2(minutes / 60)} h = <b>${fmtNum(rate, 2)} mL/h</b>.` };
+  }
+  function syringeOrder() {
+    for (let i = 0; i < 60; i++) {
+      const r = Math.random();
+      const o = r < 0.4 ? syrContinuous("primary") : r < 0.75 ? syrIntermittent() : r < 0.9 ? syrContinuous("titrate") : syrContinuous("hold");
+      if (!o || !o.syrProfile) continue;
+      o.patient.mrn = String(randInt(400000, 899999));
+      o.patient.unit = o.spec;
+      o.profile = o.syrProfile;
+      o.drug = SYR_DRUGS[o.drugId];
+      o.conc = o.drug.concs[0];
+      if (o.kind === "titrate") o.conc = o.drug.concs[0];
+      return o;
+    }
+    return null;
+  }
+
+  function syrSteps(o) {
+    const d = o.drug, prof = SYR_PROFILES[o.syrProfile];
+    const cats = []; prof.drugs.forEach((id) => { const c = SYR_DRUGS[id].syrCat; if (!cats.includes(c)) cats.push(c); }); cats.sort();
+    const progs = prof.drugs.filter((id) => SYR_DRUGS[id].syrCat === d.syrCat);
+    const profN = Object.keys(SYR_PROFILES).indexOf(o.syrProfile) + 1;
+    const pickIt = `Profile: press <b>${profN}</b> (${prof.name}) → Category: <b>${cats.indexOf(d.syrCat) + 1}</b> (${d.syrCat}) → Program: <b>${progs.indexOf(o.drugId) + 1}</b> (${d.prog})${d.highAlert ? " → ENTER (high-alert advisory)" : ""}`;
+    if (o.kind === "titrate") return ["Press the <b>CHG DOSE</b> soft key", `Type <b>${fmtNum(o.dose, 3)}</b> → ENTER (new rate ${fmtNum(o.rate, 2)} mL/h)`, "Press <b>START</b> to confirm the new dose"];
+    if (o.kind === "hold") return [pickIt, `WEIGHT ${o.patient.weight} → ENTER → DOSE ${fmtNum(o.dose, 3)} → ENTER: the pump shows the hard limit`, "OK, then click “Can't give: hold and clarify” in the practice panel."];
+    const steps = [pickIt, `WEIGHT <b>${o.patient.weight}</b> → ENTER`, `DOSE <b>${fmtNum(o.dose, 3)}</b> → ENTER`];
+    if (d.mode === "int") steps.push(`TIME <b>${o.minutes >= 60 ? `${Math.floor(o.minutes / 60)}${String(o.minutes % 60).padStart(2, "0")}` : o.minutes}</b> (${durText(o.minutes)}) → ENTER`);
+    steps.push("LOAD SYRINGE: check the size → ENTER", "PRIME (or SKIP if already primed) → check the screen → press <b>START</b>");
+    return steps;
+  }
+
+  return { SPECIALTIES, newOrder, setup, evaluate, sqSteps, plumSteps, spaceSteps, syringeOrder, syrSteps };
 })();

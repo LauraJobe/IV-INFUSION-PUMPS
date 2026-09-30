@@ -458,9 +458,9 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .pp-t { font: 700 14px var(--f-display); fill: #2a3432; text-anchor: middle; }
 .pp-note { font-size: 13px; color: var(--muted); margin-top: 14px; }
 .change-pump { margin-left: auto; }
-.only-sq, .only-plum, .only-space { display: none; }
-.dev-sq .only-sq, .dev-plum .only-plum, .dev-space .only-space { display: block; }
-.dev-sq .only-mod, .dev-plum .only-mod, .dev-space .only-mod { display: none; }
+.only-sq, .only-plum, .only-space, .only-syr { display: none; }
+.dev-sq .only-sq, .dev-plum .only-plum, .dev-space .only-space, .dev-syr .only-syr { display: block; }
+.dev-sq .only-mod, .dev-plum .only-mod, .dev-space .only-mod, .dev-syr .only-mod { display: none; }
 
 /* ---------- single-channel pump (device) ---------- */
 .sq { display: flex; flex-direction: column; align-items: center; margin: 0 auto; width: max-content; }
@@ -744,3 +744,74 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .pp-where { font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--accent); margin-top: 4px; }
 .fac-label { font-size: 13px; font-weight: 600; color: var(--ink); margin-left: auto; }
 .fac-label + .change-pump { margin-left: 0; }
+
+/* ---------- syringe pump (device) ---------- */
+.sy { margin: 0 auto; width: max-content; }
+.sy, .sy button { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.sy-case { background: linear-gradient(180deg, #eef0ef, #d6dad9); border: 1px solid #a3adab; border-radius: 18px; padding: 8px 12px 12px; box-shadow: 0 12px 24px -10px var(--shell-shadow), inset 0 1px 0 #fff; }
+.sy-top { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 16px; position: relative; }
+.sy-syringe { position: relative; height: 26px; width: 440px; margin-left: 60px; }
+.sy-barrel { position: absolute; left: 0; top: 3px; width: 300px; height: 20px; border: 2px solid #8f9a98; border-radius: 3px 10px 10px 3px; background: rgba(255,255,255,.7); overflow: hidden; }
+.sy-fluid { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--fill, 70) * 1%); background: linear-gradient(180deg, #d6ecf7, #a8d3ea); transition: width .6s; }
+/* The plunger and driver follow the fluid level (--fill, 0-100 % of the barrel). */
+.sy-plunger { position: absolute; top: 5px; left: calc(var(--fill, 70) * 3px); width: 110px; height: 16px; background: linear-gradient(90deg, #7d8886 0 6px, #c3cac8 6px); border: 1px solid #8f9a98; border-radius: 2px; transition: left .6s; }
+.sy-driver { position: absolute; left: calc(var(--fill, 70) * 3px + 110px); top: -6px; width: 40px; height: 38px; background: linear-gradient(90deg, #cfd5d4, #e6e9e8); border: 1px solid #8f9a98; border-radius: 6px; transition: left .6s; }
+.sy-tube { position: absolute; left: 10px; top: 20px; width: 64px; height: 4px; background: #d6ecf7; border: 1px solid #8f9a98; border-radius: 2px; }
+.sy-load { font: 700 10px var(--f-display); letter-spacing: .1em; color: #2a3432; margin-left: auto; }
+.sy-front { display: flex; gap: 12px; align-items: stretch; background: #e7ebf3; border: 1px solid #a8b3c9; border-radius: 12px; padding: 10px 12px; }
+.sy-leftcol { display: flex; flex-direction: column; justify-content: space-between; align-items: center; gap: 8px; width: 60px; }
+.sy-leds { display: flex; gap: 6px; }
+.sy-leds .led.on { background: #3ccf64; box-shadow: 0 0 6px #3ccf64; }
+.sy-leds .led.alarm { background: #ff4b3e; box-shadow: 0 0 8px #ff4b3e; animation: blink 1s steps(2) infinite; }
+.syb { border: 1px solid #6c7a96; background: linear-gradient(180deg, #f6f8fc, #d4dbea); color: #26314a; font: 700 10.5px var(--f-lcd); border-radius: 8px; cursor: pointer; padding: 0; }
+.syb.silence { width: 46px; height: 36px; background: linear-gradient(180deg, #ff6b61, #c62b21); color: #fff; font-size: 16px; }
+.syb.power { width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #5d86d8, #22448f); color: #fff; font-size: 9px; }
+.syb.power.pulse { animation: pulse 1.6s ease-in-out infinite; }
+.sy-mid { display: flex; flex-direction: column; gap: 8px; }
+.sy-row { display: flex; align-items: center; gap: 12px; }
+.sy-occ { display: inline-flex; gap: 3px; margin-right: auto; padding: 3px 6px; background: #2a3242; border-radius: 4px; }
+.sy-occ i { width: 12px; height: 8px; background: #4a5568; border-radius: 1px; }
+.sy-occ i.on { background: #f4e04d; }
+.syb.bolus { width: 60px; height: 32px; }
+.syb.start { width: 60px; height: 32px; background: linear-gradient(180deg, #5fc36e, #2f8c3c); color: #fff; }
+.syb.stop { width: 60px; height: 32px; background: linear-gradient(180deg, #ea675e, #b3261e); color: #fff; }
+.sy-screen { width: 400px; height: 170px; background: #a9da96; border: 3px solid #3b4a36; border-radius: 4px; color: #1b2a17; font: 700 12px/1.2 var(--f-mono); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.sy-screen.off { background: #3e4a3a; }
+.sy-soft { display: grid; grid-template-columns: repeat(4, 1fr) 52px; gap: 8px; align-items: center; }
+.syk { height: 26px; border-radius: 13px; border: 1px solid #c98a2b; background: linear-gradient(180deg, #ffd08a, #f0a948); cursor: pointer; }
+.syb.back { height: 26px; border-radius: 13px; background: linear-gradient(180deg, #ffd08a, #f0a948); border-color: #c98a2b; font-size: 9.5px; }
+.sy-pad { display: grid; grid-template-columns: repeat(3, 44px); grid-auto-rows: 44px; gap: 7px; align-content: start; }
+.syn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #6c7a96; background: radial-gradient(circle at 40% 35%, #ffffff, #cdd6e8); color: #22448f; font: 700 17px var(--f-lcd); cursor: pointer; }
+.syn.enter { font-size: 9.5px; background: radial-gradient(circle at 40% 35%, #ffffff, #b9c8e6); }
+.sy-name { grid-column: 1 / -1; text-align: center; font: 600 10px var(--f-display); letter-spacing: .14em; color: #22448f; align-self: end; }
+.syb:active, .syn:active, .syk:active { filter: brightness(.88); }
+
+/* ---------- syringe pump (screen) ---------- */
+.sys-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 3px 6px; border-bottom: 2px solid #1b2a17; font-size: 13px; }
+.sys-top .t { font: 700 15px/1.1 var(--f-lcd); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-top .u { font-size: 11px; }
+.sys-top .run { font-size: 11px; margin-left: 6px; }
+.sys-top .run.go { animation: blink 1s steps(2) infinite; }
+.sys-body { flex: 1; padding: 3px 6px; overflow: hidden; position: relative; }
+.sys-prompt { padding: 2px 6px; font-size: 10.5px; border-top: 1px solid #1b2a17; min-height: 17px; }
+.sys-prompt.warn { background: #1b2a17; color: #a9da96; }
+.sys-soft { display: grid; grid-template-columns: repeat(4, 1fr); background: #1b2a17; color: #a9da96; min-height: 20px; }
+.sys-soft div { display: grid; place-items: center; font-size: 10px; text-align: center; cursor: pointer; border-right: 1px solid #a9da96; padding: 1px; }
+.sys-soft div:last-child { border-right: 0; }
+.sys-soft div.empty { cursor: default; }
+.sys-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px; font-size: 11.5px; }
+.sys-menu span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-menu b { display: inline-block; width: 14px; }
+.sys-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px; font-size: 11.5px; }
+.sys-rows > div { display: flex; justify-content: space-between; gap: 4px; padding: 0 3px; }
+.sys-rows > div.big { grid-column: 1 / -1; font-size: 17px; }
+.sys-rows > div.on { background: #1b2a17; color: #a9da96; }
+.sys-rows > div.rev b { background: #1b2a17; color: #a9da96; padding: 0 3px; }
+.sys-msg { text-align: center; margin-top: 14px; font-size: 13px; line-height: 1.45; }
+.sys-msg .sy-size { font-size: 20px; display: inline-block; margin-top: 8px; border: 2px solid #1b2a17; padding: 2px 10px; }
+.sys-alarm { background: #1b2a17; color: #a9da96; text-align: center; font-size: 14px; padding: 3px; animation: blink 1s steps(2) infinite; }
+.sys-flash { position: absolute; left: 6px; right: 6px; bottom: 3px; background: #1b2a17; color: #a9da96; font-size: 10.5px; text-align: center; padding: 1px 3px; }
+.sys-boot { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 13px; }
+.sys-boot b { font: 700 22px var(--f-display); letter-spacing: .1em; }
+@media (pointer: coarse) { .syk { height: 32px; } .syn { width: 48px; height: 48px; } .sy-pad { grid-template-columns: repeat(3, 48px); grid-auto-rows: 48px; } }
+@media (prefers-reduced-motion: reduce) { .sys-alarm, .sys-top .run.go { animation: none; } }

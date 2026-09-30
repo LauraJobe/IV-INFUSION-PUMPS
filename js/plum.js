@@ -341,7 +341,7 @@ const Plum = (() => {
   }
 
   function drugListItems() {
-    const names = Object.keys(DRUGS).filter((id) => !/fluid|blood|bolus/i.test(DRUGS[id].cls) && !DRUGS[id].base)
+    const names = Object.keys(DRUGS).filter((id) => !SYR_DRUGS[id] && !/fluid|blood|bolus/i.test(DRUGS[id].cls) && !DRUGS[id].base)
       .map((id) => ({ label: DRUGS[id].name, drugId: id }))
       .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
     return [{ label: "No Drug Selected", drugId: null }].concat(names);

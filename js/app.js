@@ -11,9 +11,9 @@
   // Which pump the student practices on: "mod" (modular, pump.js) or "sq" (single channel, spectrum.js).
   const CFG0 = window.IVP_CONFIG || {};
   let DEV = CFG0.device || store.get("ivp-dev") || null;
-  if (!["mod", "sq", "plum", "space"].includes(DEV)) DEV = null;
-  const ENGINES = { mod: Pump, sq: Spectrum, plum: Plum, space: Space };
-  const DEVICE_EL = { mod: "#pump", sq: "#sq", plum: "#plum", space: "#space" };
+  if (!["mod", "sq", "plum", "space", "syr"].includes(DEV)) DEV = null;
+  const ENGINES = { mod: Pump, sq: Spectrum, plum: Plum, space: Space, syr: Syringe };
+  const DEVICE_EL = { mod: "#pump", sq: "#sq", plum: "#plum", space: "#space", syr: "#syr" };
   let P = ENGINES[DEV] || Pump;
 
   let speed = 1;
@@ -55,6 +55,12 @@
     if (DEV === "sq") {
       if (/^[0-9.]$/.test(e.key)) { keyTone(); Spectrum.key(e.key); }
       else if (e.key === "Enter" && !/BUTTON/.test(document.activeElement.tagName)) { keyTone(); Spectrum.key("OK"); }
+      return;
+    }
+    if (DEV === "syr") {
+      const map = { Enter: "ENTER", Backspace: "BACK", Escape: "BACK" };
+      if (/^[0-9.]$/.test(e.key)) { keyTone(); Syringe.key(e.key); }
+      else if (map[e.key] && !(e.key === "Enter" && /BUTTON/.test(document.activeElement.tagName))) { e.preventDefault(); keyTone(); Syringe.key(map[e.key]); }
       return;
     }
     if (DEV === "space") {
@@ -129,6 +135,18 @@
     if (l) { keyTone(); Plum.softKey("B", +l.dataset.i); }
   });
 
+  // Syringe pump keys
+  $$("[data-sy]").forEach((b) => b.addEventListener("click", () => { keyTone(); Syringe.key(b.dataset.sy); }));
+  $$(".syk").forEach((b) => b.addEventListener("click", () => { keyTone(); Syringe.softKey("B", +b.dataset.i); }));
+  $("#syScreen").addEventListener("click", (e) => { const l = e.target.closest("[data-i]"); if (l) { keyTone(); Syringe.softKey("B", +l.dataset.i); } });
+  $("#syPower").addEventListener("click", () => {
+    audioUnlock();
+    const was = Syringe.state.on;
+    if (was) keyTone();
+    Syringe.power();
+    if (!was && Syringe.state.screen.id === "boot") syrPowerTone();
+  });
+
   // Compact arrow-key pump keys
   $$("[data-bb]").forEach((b) => b.addEventListener("click", () => { keyTone(); Space.key(b.dataset.bb); }));
   $("#bbPower").addEventListener("click", () => {
@@ -143,13 +161,13 @@
   // Clinical facilities and the pump each one uses.
   const FACILITIES = {
     conway: { name: "Conway", dev: "plum" },
-    childrens: { name: "Children's", dev: "sq" },
+    childrens: { name: "Children's", dev: ["sq", "syr"] },
     stmarys: { name: "St. Mary's", dev: "sq" },
     chambers: { name: "Chambers", dev: "space" },
     clarksville: { name: "Clarksville", dev: "space" },
     northwest: { name: "Northwest", dev: "mod" },
   };
-  const PUMP_NAMES = { mod: "Modular pump", sq: "Single-channel pump", plum: "Dual-line cassette pump", space: "Compact arrow-key pump" };
+  const PUMP_NAMES = { mod: "Modular pump", sq: "Single-channel pump", plum: "Dual-line cassette pump", space: "Compact arrow-key pump", syr: "Syringe pump" };
   let FAC = store.get("ivp-fac");
   function showFacLabel() {
     const f = FACILITIES[FAC];
@@ -164,6 +182,7 @@
     document.body.classList.toggle("dev-sq", dev === "sq");
     document.body.classList.toggle("dev-plum", dev === "plum");
     document.body.classList.toggle("dev-space", dev === "space");
+    document.body.classList.toggle("dev-syr", dev === "syr");
     document.body.classList.toggle("dev-mod", dev === "mod");
     document.body.classList.remove("picking");
     $("#pumpPicker").hidden = true;
@@ -172,6 +191,7 @@
     $("#sq").hidden = dev !== "sq";
     $("#plum").hidden = dev !== "plum";
     $("#space").hidden = dev !== "space";
+    $("#syr").hidden = dev !== "syr";
     $(".pump-wrap").hidden = false;
     $("#changePump").hidden = !!CFG0.device;
     showFacLabel();
@@ -186,19 +206,26 @@
     $(".pump-wrap").hidden = true;
     $("#changePump").hidden = true;
   }
-  function showPicker() {
+  // All pumps, or only the pumps one facility uses (e.g. Children's: two).
+  function showPicker(only, facName) {
+    $$(".pp-card").forEach((c) => (c.hidden = !!only && !only.includes(c.dataset.dev)));
+    $("#pumpPicker h2").textContent = facName ? `${facName} uses these pumps: pick one` : "Choose the pump you want to practice on";
     document.body.classList.add("picking");
     $("#facilityPicker").hidden = true;
     $("#pumpPicker").hidden = false;
     $(".pump-wrap").hidden = true;
     $("#changePump").hidden = true;
   }
-  $$(".pp-card").forEach((b) => b.addEventListener("click", () => { audioUnlock(); FAC = "all"; store.set("ivp-fac", FAC); setDevice(b.dataset.dev); }));
+  let pickingFor = null;
+  $$(".pp-card").forEach((b) => b.addEventListener("click", () => { audioUnlock(); FAC = pickingFor || "all"; store.set("ivp-fac", FAC); setDevice(b.dataset.dev); }));
   $$(".fac-card").forEach((b) => b.addEventListener("click", () => {
     audioUnlock();
-    if (b.dataset.fac === "all") return showPicker();
+    if (b.dataset.fac === "all") { pickingFor = null; return showPicker(); }
+    const f = FACILITIES[b.dataset.fac];
+    if (Array.isArray(f.dev)) { pickingFor = b.dataset.fac; return showPicker(f.dev, f.name); }
+    pickingFor = null;
     FAC = b.dataset.fac; store.set("ivp-fac", FAC);
-    setDevice(FACILITIES[FAC].dev);
+    setDevice(f.dev);
   }));
   $("#ppBack").addEventListener("click", showFacilities);
   $("#changePump").addEventListener("click", showFacilities);
@@ -270,11 +297,14 @@
     if (DEV === "sq") tone(1000, 0.09, 0, 0.07, 0.12);
     else if (DEV === "plum") tone(2877, 0.05, 0, 0.05);
     else if (DEV === "space") tone(3915, 0.06, 0, 0.04);
+    else if (DEV === "syr") tone(717, 0.06, 0, 0.06, 0.1);
     else tone(1200, 0.1, 0, 0.07, 0.16);
     buzz(20);
   }
   // Single-channel pump power on: a short rising two-note chime.
   // Cassette pump: one beep at power on (the manual says to listen for it).
+  // Syringe pump start-up (measured from a recording): 717 Hz for 0.3 s, then a short 717 Hz beep.
+  function syrPowerTone() { tone(717, 0.3, 0, 0.08, 0.12); tone(717, 0.09, 0.33, 0.08, 0.12); buzz([300, 30, 90]); }
   // Compact pump power on (measured from a recording): a 613 Hz tone, 0.55 s,
   // then a short high 3.9 kHz beep (the manual: two tones during the self test).
   function spacePowerTone() { tone(613, 0.55, 0, 0.08, 0.1); tone(3915, 0.1, 0.9, 0.04); buzz([200, 300, 60]); }
@@ -299,6 +329,7 @@
     if (DEV === "sq") return sqAlarmAudio(S);
     if (DEV === "plum") return plumAlarmAudio(S);
     if (DEV === "space") return spaceAlarmAudio(S);
+    if (DEV === "syr") return syrAlarmAudio(S);
     const alarms = CHANNEL_IDS.map((id) => S.channels[id].alarm).filter(Boolean);
     if (!alarms.length) {
       // Steady single reminder beep until the program is started.
@@ -379,6 +410,50 @@
     lastBeep = now < next + 260 ? next : now;
     tone(984, 0.09, lead, 0.08, 0.08); tone(555, 0.13, lead + 0.08, 0.09, 0.08); tone(655, 0.11, lead + 0.19, 0.08, 0.08);
     buzz([100, 30, 130, 30, 110], lead * 1000);
+  }
+
+  // Syringe pump: alarm (not in the recording) = three 717 Hz beeps every 3 s;
+  // programming not started = one short beep every 1.5 s.
+  function syrAlarmAudio(S) {
+    const a = S.channels.A.alarm, now = Date.now();
+    if (!a) {
+      if (Syringe.pending() && now - lastRemind >= 1500) { lastRemind = now; tone(717, 0.12, 0, 0.05, 0.1); }
+      return;
+    }
+    const next = lastBeep + 3000;
+    if (now < next - 260) return;
+    const lead = now < next ? (next - now) / 1000 : 0;
+    lastBeep = now < next + 260 ? next : now;
+    [0, 0.3, 0.6].forEach((t) => tone(717, 0.2, lead + t, 0.08, 0.12));
+    buzz([200, 100, 200, 100, 200], lead * 1000);
+  }
+
+  // ------------------------------------------------------------ render syringe pump
+  function renderSyr(S) {
+    const scr = $("#syScreen");
+    const spec = Syringe.render();
+    const c = S.channels.A, p = c.primary;
+    const running = S.on && c.state === "running";
+    $("#syPower").classList.toggle("pulse", !S.on);
+    $("#syLedG").className = "led" + (running && !c.alarm ? " on" : "");
+    $("#syLedR").className = "led" + (S.on && c.alarm ? " alarm" : "");
+    $$("#syOcc i").forEach((i, n) => i.classList.toggle("on", running && n === 0));
+    const dev = $("#syr");
+    const fill = p ? Math.max(4, Math.min(100, (p.remaining / (p.int ? Math.max(p.vtbi, 0.1) : 50)) * 70)) : 70;
+    dev.style.setProperty("--fill", fill.toFixed(1));
+    scr.className = "sy-screen" + (!S.on || spec.off ? " off" : "");
+    if (!S.on || spec.off) { setHTML(scr, ""); return; }
+    if (spec.boot) { setHTML(scr, `<div class="sys-boot"><b>SYRINGE PUMP</b><span>SELF TEST IN PROGRESS</span><span style="font-size:11px">DO NOT MOVE THE PLUNGER DRIVER</span></div>`); return; }
+    const top = `<div class="sys-top"><span class="t">${spec.title}</span><span class="u">${spec.unit || ""}${spec.running ? `<span class="run go"> ▶▶</span>` : ""}</span></div>`;
+    let body = "";
+    if (spec.alarm) body += `<div class="sys-alarm">${spec.alarm.msg}</div>`;
+    if (spec.menu) body += `<div class="sys-menu">${spec.menu.map((m) => `<span><b>${m.n}</b>${m.label}</span>`).join("")}</div>${spec.page ? `<div style="text-align:right;font-size:10px">${spec.page}</div>` : ""}`;
+    if (spec.rows) body += `<div class="sys-rows">${spec.rows.map((r) => `<div class="${r.big ? "big" : ""}${r.on ? " on" : ""}${r.rev ? " rev" : ""}"><span>${r.k}</span><b>${r.v}</b></div>`).join("")}</div>`;
+    if (spec.msg) body += `<div class="sys-msg">${spec.msg}</div>`;
+    if (S.flash) body += `<div class="sys-flash">${S.flash.text}</div>`;
+    const prompt = `<div class="sys-prompt${spec.alert ? " warn" : ""}">${spec.prompt || ""}</div>`;
+    const soft = `<div class="sys-soft">${spec.soft.map((k, i) => k ? `<div data-i="${i}">${k.label}</div>` : `<div class="empty"></div>`).join("")}</div>`;
+    setHTML(scr, top + `<div class="sys-body">${body}</div>` + prompt + soft);
   }
 
   // ------------------------------------------------------------ render compact pump
@@ -683,7 +758,7 @@
   function quizOrder() {
     const spec = quiz.specs[quiz.results.length];
     let o = null;
-    for (let i = 0; i < 30; i++) { o = PRACTICE.newOrder(spec, { noHold: DEV === "plum" }); if (o && !quiz.used.has(o.drugId)) break; }
+    for (let i = 0; i < 30; i++) { o = DEV === "syr" ? PRACTICE.syringeOrder() : PRACTICE.newOrder(spec, { noHold: DEV === "plum" }); if (o && !quiz.used.has(o.drugId)) break; }
     quiz.used.add(o.drugId);
     return o;
   }
@@ -695,7 +770,7 @@
       ["#patientBand", "#orders", "#goals"].forEach((s) => ($(s)._h = null));
       return;
     }
-    const order = scn.quiz ? quizOrder() : same && X.order ? X.order : PRACTICE.newOrder(practiceFilter, { noHold: DEV === "plum" });
+    const order = scn.quiz ? quizOrder() : same && X.order ? X.order : DEV === "syr" ? PRACTICE.syringeOrder() : PRACTICE.newOrder(practiceFilter, { noHold: DEV === "plum" });
     X = { phase: 0, decisions: {}, met: {}, miss: {}, order, result: null, held: false, showAnswer: false };
     PRACTICE.setup(P, order);
     X.logStart = P.state.log.length;
@@ -745,7 +820,7 @@
         <div class="name">${p.name}</div>
         <dt>Patient ID</dt><dd class="mrn">${p.mrn}</dd>
         <dt>Age</dt><dd>${p.age}</dd><dt>Weight</dt><dd>${p.weight} kg</dd>
-        <dt>Unit</dt><dd>${p.unit} <span class="src">(profile already selected)</span></dd></dl>`);
+        <dt>Unit</dt><dd>${p.unit} <span class="src">${DEV === "syr" ? "(pick the matching profile on the pump)" : "(profile already selected)"}</span></dd></dl>`);
     setHTML($("#orders"), `<h3>Provider order</h3><p>${DEV === "sq" || DEV === "space" ? o.text.replace(/ on Channel A/g, " on the pump") : DEV === "plum" ? o.text.replace(/ on Channel A/g, " on Line A").replace(/The secondary bag is hung above the primary with its clamp open\./, "The secondary container is attached to the Line B inlet.") : o.text}</p>`);
     setHTML($("#vitals"), "");
     setHTML($("#decisions"), "");
@@ -764,7 +839,10 @@
           ? `<button class="btn-main" data-pr="next">${quiz.results.length < quiz.count ? `Next order (${quiz.results.length + 1} of ${quiz.count})` : "See my results"}</button>`
           : `<button class="btn-main" data-pr="next">Next order</button>${r.ok ? "" : `<button class="btn-plain" data-pr="retry">Try this order again</button>`}`}</div>`;
     } else {
-      const help = DEV === "space"
+      const help = DEV === "syr"
+        ? (o.kind === "titrate" ? "The drip is running. Press <b>CHG DOSE</b>, type the new dose, ENTER, then <b>START</b>. Your work is checked when you press START."
+          : "Menus are numbered: <b>press the number</b>. Pick the profile that matches the unit and the order type (continuous drip or intermittent dose). Your work is checked when you press <b>START</b>.")
+        : DEV === "space"
         ? (o.kind === "titrate" ? "The drip is running. Press <b>◀</b>, dial the new doserate, press <b>OK</b>. Your work is checked when you confirm it."
           : o.kind === "secondary" ? "The primary is running. <b>Start/Stop</b> to stop it, ▼ to <b>SECondary</b> → New SECondary. Your work is checked when the SEC starts."
           : "No number keys: <b>◀ ▶</b> pick the digit, <b>▲ ▼</b> change it, <b>OK</b> confirms. Press <b>OK</b> to begin. Your work is checked when you press <b>Start/Stop</b>.")
@@ -777,7 +855,7 @@
           : o.kind === "secondary" ? "The primary is running. Stop it with <b>RUN/STOP</b>, then <b>program pri/sec</b> → <b>program secndry</b>. Your work is checked when the secondary starts."
           : "The pump is on the Drug Search screen. Program the order. Your work is checked when the infusion starts (<b>RUN/STOP</b> → Check Flow <b>yes</b>).")
         : `Press <b>CHANNEL SELECT</b> on ${o.kind === "secondary" || o.kind === "titrate" ? "module <b>A</b>" : "either module"} and program the order. Your work is checked when you press <b>START</b>.`;
-      const steps = DEV === "sq" ? PRACTICE.sqSteps(o) : DEV === "plum" ? PRACTICE.plumSteps(o) : DEV === "space" ? PRACTICE.spaceSteps(o) : o.steps;
+      const steps = DEV === "sq" ? PRACTICE.sqSteps(o) : DEV === "plum" ? PRACTICE.plumSteps(o) : DEV === "space" ? PRACTICE.spaceSteps(o) : DEV === "syr" ? PRACTICE.syrSteps(o) : o.steps;
       body = `<p class="pr-help">${help}</p>
         <div class="pr-actions"><button class="btn-plain" data-pr="hold">Can't give: hold and clarify</button>${scn.quiz ? "" : `<button class="btn-plain" data-pr="answer">${X.showAnswer ? "Hide" : "Show"} the answer</button><button class="btn-plain" data-pr="skip">Skip</button>`}</div>
         ${X.showAnswer ? `<div class="pr-answer"><ol>${steps.map((s) => `<li>${s}</li>`).join("")}</ol><p class="pr-math">${o.math}</p></div>` : ""}`;
@@ -786,7 +864,7 @@
       ? `<div class="pr-head"><h3>Check-off · order ${quiz.results.length + (X.result ? 0 : 1)} of ${quiz.count}</h3></div>
          <div class="pr-score"><span>One attempt per order. Your score is the percent programmed correctly.</span></div>`
       : `<div class="pr-head"><h3>Practice mode</h3>
-        <label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label></div>
+        ${DEV === "syr" ? `<span class="pr-spec">NICU · PICU · General Peds</span>` : `<label for="specSel" class="pr-spec">Specialty <select id="specSel">${specOpts}</select></label>`}</div>
       <div class="pr-score"><span><b>${sc.correct}</b>/${sc.total} correct</span><span>Streak <b>${sc.streak}</b></span><span>Best streak <b>${sc.best}</b></span></div>`;
     setHTML($("#goals"), head + body);
     const hist = S.log.slice(X.logStart).slice(-20).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
@@ -872,7 +950,7 @@
       case "powerOn": return "System on";
       case "powerOff": return "System off";
       case "newPatient": return `New patient: ${e.yes ? "Yes" : "No"}`;
-      case "profile": return `Profile: ${PROFILES[e.profile].name}`;
+      case "profile": return `Profile: ${(PROFILES[e.profile] || SYR_PROFILES[e.profile] || { name: e.profile }).name}`;
       case "weight": return `Weight entered: ${e.kg} kg`;
       case "select": return `Channel ${e.ch} selected`;
       case "drugSelected": return `Ch ${e.ch}: ${dn(e.drugId)} ${e.conc}${e.secondary ? " (secondary)" : ""}`;
@@ -911,15 +989,17 @@
 
   // ------------------------------------------------------------ library tab
   const libProfile = $("#libProfile");
-  libProfile.innerHTML = Object.keys(PROFILES).map((id) => `<option value="${id}">${PROFILES[id].name}</option>`).join("");
-  libProfile.value = "icu";
+  libProfile.innerHTML = `<optgroup label="Large-volume pumps">${Object.keys(PROFILES).map((id) => `<option value="${id}">${PROFILES[id].name}</option>`).join("")}</optgroup>
+    <optgroup label="Syringe pump">${Object.keys(SYR_PROFILES).map((id) => `<option value="${id}">Syringe: ${SYR_PROFILES[id].name}</option>`).join("")}</optgroup>`;
+  libProfile.value = DEV === "syr" ? "picuCont" : "icu";
+  const libDrugs = (pid) => (SYR_PROFILES[pid] ? SYR_PROFILES[pid].drugs.map((id) => SYR_DRUGS[id]).sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())) : profileDrugList(pid));
   function renderLibrary() {
     const q = $("#libSearch").value.trim().toLowerCase();
-    const rows = profileDrugList(libProfile.value).filter((d) => !q || d.name.toLowerCase().includes(q)).map((d) => {
+    const rows = libDrugs(libProfile.value).filter((d) => !q || d.name.toLowerCase().includes(q)).map((d) => {
       const l = d.limits;
-      return `<tr><td><b>${d.name}</b>${d.highAlert ? `<span class="ha">HIGH ALERT</span>` : ""}<div class="note">${d.cls}</div></td>
+      return `<tr><td><b>${d.name}</b>${d.highAlert ? `<span class="ha">HIGH ALERT</span>` : ""}<div class="note">${d.prog ? d.prog + " · " + d.syrCat : d.cls}</div></td>
         <td>${d.concs.map((c) => concLabel(d, c) + (c.amt ? ` <span class="note">(${concPerMlLabel(c)})</span>` : "")).join("<br>")}</td>
-        <td class="num">${doseUnitLabel(d)}</td>
+        <td class="num">${d.mode === "int" ? `${d.dose.unit} per dose<div class="note">limits per kg</div>` : doseUnitLabel(d)}</td>
         <td class="num">${l.softMin != null ? fmtNum(l.softMin, 3) : "—"}</td>
         <td class="num">${l.softMax != null ? fmtNum(l.softMax, 3) : "—"}</td>
         <td class="num hard">${l.hardMax != null ? fmtNum(l.hardMax, 3) : "—"}</td>
@@ -937,6 +1017,7 @@
     if (DEV === "sq") renderSq(S);
     else if (DEV === "plum") renderPlum(S);
     else if (DEV === "space") renderSpace(S);
+    else if (DEV === "syr") renderSyr(S);
     else { renderLCD(S); renderModules(S); }
     if (!scn || !(scn.practice || scn.noBedside)) renderBedside(S);
     if (scn) renderCoach(S);
@@ -951,7 +1032,7 @@
     renderAll();
   }, 250);
   // Instant feedback for key presses (don't wait for the next tick)
-  [Pump, Spectrum, Plum, Space].forEach((eng) => eng.onChange(() => { if (eng === P) requestAnimationFrame(renderAll); }));
+  [Pump, Spectrum, Plum, Space, Syringe].forEach((eng) => eng.onChange(() => { if (eng === P) requestAnimationFrame(renderAll); }));
 
   // Read-only hook for automated tests.
   window.ivpPractice = { get order() { return X && X.order; }, get result() { return X && X.result; } };

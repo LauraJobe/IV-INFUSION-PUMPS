@@ -322,6 +322,56 @@ const PROFILES = {
   },
 };
 
+// ---------- Syringe pump library (pediatric / NICU syringe concentrations) ----------
+// Teaching values. "int" programs are intermittent doses given over a set time:
+// the dose is the total amount (mg or mEq) and their limits are per kg per dose.
+const SYR_DRUGS = {
+  syr_fentanyl: { name: "fentaNYL", prog: "FENTANYL 10 MCG/ML DRIP", syrCat: "SEDATION/ANALG.", cls: "Opioid", highAlert: true, mode: "cont",
+    concs: [{ amt: 500, unit: "mcg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "hr" }, limits: { softMin: 0.5, softMax: 3, hardMax: 5 } },
+  syr_morphine: { name: "Morphine", prog: "MORPHINE 100 MCG/ML DRIP", syrCat: "SEDATION/ANALG.", cls: "Opioid", highAlert: true, mode: "cont",
+    concs: [{ amt: 5000, unit: "mcg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "hr" }, limits: { softMin: 10, softMax: 40, hardMax: 60 } },
+  syr_midazolam: { name: "Midazolam", prog: "MIDAZOLAM 1 MG/ML DRIP", syrCat: "SEDATION/ANALG.", cls: "Benzodiazepine", highAlert: true, mode: "cont",
+    concs: [{ amt: 50, unit: "mg", vol: 50 }], dose: { unit: "mg", perKg: true, time: "hr" }, limits: { softMin: 0.05, softMax: 0.2, hardMax: 0.4 } },
+  syr_dexmed: { name: "Dexmedetomidine", prog: "DEXMEDETOMIDINE 4 MCG/ML", syrCat: "SEDATION/ANALG.", cls: "Sedative", highAlert: true, mode: "cont",
+    concs: [{ amt: 200, unit: "mcg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "hr" }, limits: { softMin: 0.2, softMax: 1.5, hardMax: 2 } },
+  syr_dobutamine: { name: "DOBUTamine", prog: "DOBUTAMINE 1000 MCG/ML", syrCat: "CARDIOVASCULAR", cls: "Inotrope", highAlert: true, mode: "cont",
+    concs: [{ amt: 50, unit: "mg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "min" }, limits: { softMin: 2.5, softMax: 15, hardMax: 20 } },
+  syr_dopamine: { name: "DOPamine", prog: "DOPAMINE 1600 MCG/ML", syrCat: "CARDIOVASCULAR", cls: "Inotrope/vasopressor", highAlert: true, mode: "cont",
+    concs: [{ amt: 80, unit: "mg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "min" }, limits: { softMin: 2, softMax: 15, hardMax: 20 } },
+  syr_epinephrine: { name: "EPINEPHrine", prog: "EPINEPHRINE 20 MCG/ML", syrCat: "CARDIOVASCULAR", cls: "Vasopressor", highAlert: true, mode: "cont",
+    concs: [{ amt: 1, unit: "mg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "min" }, limits: { softMin: 0.02, softMax: 0.5, hardMax: 1 } },
+  syr_milrinone: { name: "Milrinone", prog: "MILRINONE 200 MCG/ML", syrCat: "CARDIOVASCULAR", cls: "Inotrope", highAlert: true, mode: "cont",
+    concs: [{ amt: 10, unit: "mg", vol: 50 }], dose: { unit: "mcg", perKg: true, time: "min" }, limits: { softMin: 0.25, softMax: 0.75, hardMax: 1 } },
+  syr_insulin: { name: "Insulin Regular", prog: "INSULIN 1 UNIT/ML DRIP", syrCat: "MISCELLANEOUS", cls: "Antidiabetic", highAlert: true, mode: "cont",
+    concs: [{ amt: 50, unit: "units", vol: 50 }], dose: { unit: "units", perKg: true, time: "hr" }, limits: { softMin: 0.02, softMax: 0.1, hardMax: 0.2 } },
+  syr_heparin: { name: "Heparin", prog: "HEPARIN 50 UNITS/ML DRIP", syrCat: "MISCELLANEOUS", cls: "Anticoagulant", highAlert: true, mode: "cont",
+    concs: [{ amt: 2500, unit: "units", vol: 50 }], dose: { unit: "units", perKg: true, time: "hr" }, limits: { softMin: 10, softMax: 28, hardMax: 40 } },
+  syr_ampicillin: { name: "Ampicillin", prog: "AMPICILLIN 100 MG/ML", syrCat: "ANTIBIOTIC", cls: "Antibiotic", mode: "int",
+    concs: [{ amt: 100, unit: "mg", vol: 1 }], dose: { unit: "mg", perKg: false, time: "dose" }, limits: { softMin: 25, softMax: 100, hardMax: 200 } },
+  syr_cefoxitin: { name: "Cefoxitin", prog: "CEFOXITIN 40 MG/ML", syrCat: "ANTIBIOTIC", cls: "Antibiotic", mode: "int",
+    concs: [{ amt: 40, unit: "mg", vol: 1 }], dose: { unit: "mg", perKg: false, time: "dose" }, limits: { softMin: 20, softMax: 40, hardMax: 60 } },
+  syr_vancomycin: { name: "Vancomycin", prog: "VANCOMYCIN 5 MG/ML", syrCat: "ANTIBIOTIC", cls: "Antibiotic", mode: "int",
+    concs: [{ amt: 5, unit: "mg", vol: 1 }], dose: { unit: "mg", perKg: false, time: "dose" }, limits: { softMin: 10, softMax: 20, hardMax: 25 } },
+  syr_gentamicin: { name: "Gentamicin", prog: "GENTAMICIN 2 MG/ML", syrCat: "ANTIBIOTIC", cls: "Antibiotic", mode: "int",
+    concs: [{ amt: 2, unit: "mg", vol: 1 }], dose: { unit: "mg", perKg: false, time: "dose" }, limits: { softMin: 2.5, softMax: 5, hardMax: 7.5 } },
+  syr_acyclovir: { name: "Acyclovir", prog: "ACYCLOVIR 5 MG/ML", syrCat: "ANTIBIOTIC", cls: "Antiviral", mode: "int",
+    concs: [{ amt: 5, unit: "mg", vol: 1 }], dose: { unit: "mg", perKg: false, time: "dose" }, limits: { softMin: 10, softMax: 20, hardMax: 30 } },
+  syr_calcium: { name: "Calcium Gluconate", prog: "CALCIUM GLUCONATE 100 MG/ML", syrCat: "ELECTROLYTES", cls: "Electrolyte", mode: "int",
+    concs: [{ amt: 100, unit: "mg", vol: 1 }], dose: { unit: "mg", perKg: false, time: "dose" }, limits: { softMin: 50, softMax: 100, hardMax: 200 } },
+  syr_kcl: { name: "Potassium Chloride", prog: "POTASSIUM CHLORIDE 0.2 MEQ/ML", syrCat: "ELECTROLYTES", cls: "Electrolyte", highAlert: true, mode: "int",
+    concs: [{ amt: 0.2, unit: "mEq", vol: 1 }], dose: { unit: "mEq", perKg: false, time: "dose" }, limits: { softMin: 0.25, softMax: 1, hardMax: 1 } },
+};
+// Intermittent limits are per kg per dose.
+Object.values(SYR_DRUGS).forEach((d) => { if (d.mode === "int") d.limitsPerKg = true; });
+const SYR_PROFILES = {
+  nicuInt: { name: "NICU INTERMITTENT", unit: "NICU", mode: "int", drugs: ["syr_ampicillin", "syr_gentamicin", "syr_vancomycin", "syr_acyclovir", "syr_calcium"] },
+  nicuCont: { name: "NICU CONTINUOUS", unit: "NICU", mode: "cont", drugs: ["syr_fentanyl", "syr_morphine", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_insulin", "syr_heparin"] },
+  picuInt: { name: "PICU INTERMITTENT", unit: "PICU", mode: "int", drugs: ["syr_cefoxitin", "syr_vancomycin", "syr_ampicillin", "syr_acyclovir", "syr_calcium", "syr_kcl"] },
+  picuCont: { name: "PICU CONTINUOUS", unit: "PICU", mode: "cont", drugs: ["syr_fentanyl", "syr_morphine", "syr_midazolam", "syr_dexmed", "syr_dobutamine", "syr_dopamine", "syr_epinephrine", "syr_milrinone", "syr_insulin", "syr_heparin"] },
+  genPeds: { name: "GENERAL PEDS", unit: "General Peds", mode: "both", drugs: ["syr_cefoxitin", "syr_ampicillin", "syr_vancomycin", "syr_morphine", "syr_kcl", "syr_heparin"] },
+};
+Object.keys(SYR_DRUGS).forEach((id) => { SYR_DRUGS[id].id = id; DRUGS[id] = SYR_DRUGS[id]; });
+
 // Returns the drug as configured in a profile (base entry + overrides).
 function profileDrug(profileId, drugId) {
   const p = PROFILES[profileId];
