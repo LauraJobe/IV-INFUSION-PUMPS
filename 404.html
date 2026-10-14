@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IV Pump Practice Lab</title>
+<script>
+  // GitHub Pages addresses are case-sensitive. Send /Modular, /MODULAR, etc. to
+  // the real folder; anything else unknown goes to the main site.
+  (function () {
+    var m = location.pathname.match(/^(.*?\/)modular\/?(.*)$/i);
+    if (m) location.replace(m[1] + "modular/" + m[2] + location.search + location.hash);
+    else location.replace(location.pathname.split("/").slice(0, 2).join("/") + "/");
+  })();
+</script>
+</head>
+<body style="font-family: system-ui, sans-serif; padding: 24px">
+<p>Opening the IV Pump Practice Lab… <a href="/IV-INFUSION-PUMPS/">Continue</a></p>
+</body>
+</html>
