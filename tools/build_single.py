@@ -14,6 +14,14 @@ fragment = "--fragment" in sys.argv
 html = (root / "index.html").read_text()
 css = (root / "css/pump.css").read_text()
 scripts = re.findall(r'<script src="([^"]+)"></script>', html)
+# Single-pump pages (modular/) must match index.html.
+import subprocess
+subprocess.run([sys.executable, str(root / "tools/build_pump_pages.py"), "--check"], check=True)
+# The offline copy (sw.js) must list every file the page loads.
+sw = (root / "sw.js").read_text()
+for f in scripts + re.findall(r'href="((?:css|icons)/[^"]+)"', html):
+    if f'"{f}"' not in sw:
+        sys.exit(f"sw.js APP list is missing {f}")
 js = "\n".join((root / s).read_text() for s in scripts)
 fonts = re.search(r'<link rel="stylesheet" href="(https://fonts[^"]+)">', html).group(1)
 body = html.split("<!--BODY-START-->")[1].split("<!--BODY-END-->")[0]
