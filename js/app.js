@@ -1,4 +1,5 @@
 /* UI wiring: renders the pump, bedside panel, scenario coach, library. */
+const APP_SRC = (document.currentScript && document.currentScript.src) || location.href;
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -1123,7 +1124,8 @@
   }
   // Installable app on phones and tablets (the public website only, not an LMS package).
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && window.isSecureContext && !CFG.lms) {
-    try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* not allowed here */ }
+    // sw.js sits at the site root (one folder above js/), also for pages in subfolders like modular/.
+    try { navigator.serviceWorker.register(new URL("../sw.js", APP_SRC).href).catch(() => {}); } catch (e) { /* not allowed here */ }
   }
   if (DEV) setDevice(DEV, false); else showFacilities();
   loadScenario(CFG.mode || store.get("ivp-scn") || "practice");

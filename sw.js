@@ -6,12 +6,13 @@
    - Network first, so students get the newest version when online; the saved
      copy is used when there is no connection or the network is too slow.
    Keep APP in step with the files index.html loads (build_single.py checks). */
-const CACHE = "ivp-v2";
+const CACHE = "ivp-v3";
 const APP = [
   "./", "index.html", "manifest.webmanifest", "css/pump.css",
   "js/library.js", "js/pump.js", "js/spectrum.js", "js/plum.js", "js/space.js", "js/syringe.js",
   "js/scenarios.js", "js/level1.js", "js/practice.js", "js/app.js", "js/scorm.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
+  "modular/", "modular/index.html", "modular/manifest.webmanifest",
 ];
 const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 const NET_TIMEOUT_MS = 4000;
