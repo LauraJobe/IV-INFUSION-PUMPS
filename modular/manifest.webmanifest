@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Modular IV Pump Practice",
-  "short_name": "Modular Pump",
+  "name": "IV Pump Orientation",
+  "short_name": "Pump Orientation",
   "description": "Practice programming IV pumps with a drug library.",
   "start_url": "./",
   "scope": "./",

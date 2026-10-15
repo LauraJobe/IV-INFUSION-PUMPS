@@ -778,7 +778,7 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
 
   // ------------------------------------------------------------ scenarios
   const sel = $("#scenarioSelect");
-  const MODES = SCENARIOS.filter((s) => !s.lmsOnly || CFG.mode === s.id);
+  const MODES = SCENARIOS.filter((s) => !(s.lmsOnly || s.pageOnly) || CFG.mode === s.id);
   const levels = [...new Set(MODES.map((s) => s.level))];
   sel.innerHTML = levels.map((lv) => `<optgroup label="${lv}">${MODES.filter((s) => s.level === lv).map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</optgroup>`).join("");
   sel.addEventListener("change", () => loadScenario(sel.value));
@@ -787,7 +787,7 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
   function loadScenario(id) {
     scn = MODES.find((s) => s.id === id) || MODES[0];
     sel.value = scn.id;
-    X = { phase: 0, decisions: {}, met: {}, miss: {}, showDebrief: false };
+    X = { phase: 0, decisions: {}, met: {}, miss: {}, metAt: {}, startedAt: new Date(), showDebrief: false };
     hintsShown = 0;
     document.body.classList.toggle("practice-mode", !!(scn.practice || scn.noBedside));
     if (scn.quiz) startQuiz();
@@ -952,6 +952,36 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
   }
 
+  // One-page completion record for a guided scenario, printed from a hidden block.
+  function printCompletion() {
+    const name = ($("#certName").value || "").trim();
+    if (!name) { $("#certName").focus(); $("#certName").setAttribute("aria-invalid", "true"); return; }
+    $("#certName").removeAttribute("aria-invalid");
+    store.set("ivp-cert-name", name);
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const fmtT = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const goals = scn.goals || [];
+    const end = new Date(Math.max(...goals.map((g, i) => +X.metAt[i] || 0)));
+    const mins = Math.max(1, Math.round((end - X.startedAt) / 60000));
+    const log = P.state.log;
+    const alerts = log.filter((e) => e.type === "hardLimit" || e.type === "softLimit").length;
+    let box = $("#printArea");
+    if (!box) { box = document.createElement("div"); box.id = "printArea"; document.body.appendChild(box); }
+    box.innerHTML = `<div class="pc-head"><div class="pc-kicker">Clinical simulation · IV pump</div><h1>${esc(scn.title.split(":")[0])}: completion record</h1></div>
+      <table class="pc-meta"><tr><th>Student</th><td>${esc(name)}</td></tr><tr><th>Date</th><td>${end.toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}</td></tr>
+      <tr><th>Pump</th><td>${esc(PUMP_NAMES[DEV] || "")}</td></tr><tr><th>Time on task</th><td>${mins} min (${fmtT(X.startedAt)} to ${fmtT(end)})</td></tr>
+      <tr><th>Limit alerts during practice</th><td>${alerts}</td></tr></table>
+      <table class="pc-tasks"><thead><tr><th></th><th>Task</th><th>Completed</th></tr></thead><tbody>
+      ${goals.map((g, i) => `<tr><td>${X.met[i] ? "✓" : "—"}</td><td>${g.text}</td><td>${X.metAt[i] ? fmtT(X.metAt[i]) : "Not done"}</td></tr>`).join("")}</tbody></table>
+      <p class="pc-sign">Instructor initials: ____________ &nbsp;&nbsp; Date: ____________</p>
+      <p class="pc-foot">Practice simulator for education only. Not a clinical competency validation on its own.</p>`;
+    document.body.classList.add("printing");
+    const done = () => { document.body.classList.remove("printing"); window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    window.print();
+    setTimeout(done, 1500);
+  }
+
   function renderCoach(S) {
     if (scn.practice) return renderPractice(S);
     const p = scn.patient;
@@ -977,13 +1007,15 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
 
     const goals = scn.goals || [];
     goals.forEach((g, i) => {
-      if (!X.met[i] && g.check(S, X)) X.met[i] = true;
+      if (!X.met[i] && g.check(S, X)) { X.met[i] = true; X.metAt[i] = new Date(); }
       if (!X.met[i] && g.negative && g.negative(S, X)) X.miss[i] = true;
     });
     const metCount = goals.filter((g, i) => X.met[i]).length;
+    // Guided (sequential) scenarios show the steps for the first task not yet done.
+    const nextGoal = scn.sequential ? goals.findIndex((g, i) => !X.met[i]) : -1;
     const hints = scn.hints || [];
     const goalHTML = goals.length ? `<h3>Your checklist · ${metCount}/${goals.length}</h3><div class="progress"><i style="width:${(metCount / goals.length) * 100}%"></i></div>
-      <ol>${goals.map((g, i) => `<li class="${X.met[i] ? "met" : X.miss[i] ? "miss" : ""}"><span class="mark">${X.met[i] ? "✓" : X.miss[i] ? "✕" : ""}</span><span>${g.text}${X.miss[i] && !X.met[i] ? ` <em>(an error was recorded, try again)</em>` : ""}</span></li>`).join("")}</ol>` : `<h3>Free practice</h3><p style="margin:0;font-size:14px">No checklist. Watch the event history below to see what the pump recorded.</p>`;
+      <ol>${goals.map((g, i) => `<li class="${X.met[i] ? "met" : X.miss[i] ? "miss" : ""}${i === nextGoal ? " now" : ""}"><span class="mark">${X.met[i] ? "✓" : X.miss[i] ? "✕" : ""}</span><span>${g.text}${X.miss[i] && !X.met[i] ? ` <em>(an error was recorded, try again)</em>` : ""}${i === nextGoal && g.how ? `<ol class="how">${g.how.map((h) => `<li>${h}</li>`).join("")}</ol>` : ""}</span></li>`).join("")}</ol>` : `<h3>Free practice</h3><p style="margin:0;font-size:14px">No checklist. Watch the event history below to see what the pump recorded.</p>`;
     const hintHTML = hints.length ? `<div style="margin-top:12px"><button class="btn-plain" id="hintBtn" ${hintsShown >= hints.length ? "disabled" : ""}>${hintsShown ? "Next hint" : "Show a hint"} (${hintsShown}/${hints.length})</button>${hintsShown ? `<ol class="hintlist">${hints.slice(0, hintsShown).map((h) => `<li>${h}</li>`).join("")}</ol>` : ""}</div>` : "";
     setHTML($("#goals"), goalHTML + hintHTML);
 
@@ -991,7 +1023,12 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     const deb = scn.debrief ? (done || X.showDebrief
       ? `<div class="${done ? "complete" : "panel"}">${done ? `<p style="margin:0 0 6px"><strong>Scenario complete.</strong> Every checklist item met.</p>` : `<h3>Debrief</h3>`}<div class="debrief">${scn.debrief}</div></div>`
       : `<button class="btn-plain" id="debriefBtn">Show debrief</button>`) : "";
-    setHTML($("#debrief"), deb);
+    // Completion record (orientation): name + print / save as PDF.
+    const cert = done && scn.sequential ? `<div class="cert-box"><label for="certName">Your name for the completion record</label>
+      <div class="cert-row"><input id="certName" type="text" autocomplete="name" placeholder="First and last name"><button class="btn-main" id="certPrint">Print completion record</button></div>
+      <p class="pr-math">Prints one page. To save a PDF, choose <b>Save as PDF</b> as the printer.</p></div>` : "";
+    setHTML($("#debrief"), deb + cert);
+    if (cert && !$("#certName").value) $("#certName").value = store.get("ivp-cert-name") || "";
 
     const hist = S.log.slice(-40).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
@@ -1018,6 +1055,7 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     if (r) { delete X.decisions[r.dataset.retry]; renderCoach(P.state); return; }
     if (e.target.id === "hintBtn") { hintsShown++; renderCoach(P.state); }
     if (e.target.id === "debriefBtn") { X.showDebrief = true; renderCoach(P.state); }
+    if (e.target.id === "certPrint") printCompletion();
   });
 
   function fmtClock(t) {
