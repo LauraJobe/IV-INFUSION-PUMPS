@@ -790,6 +790,7 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     X = { phase: 0, decisions: {}, met: {}, miss: {}, metAt: {}, startedAt: new Date(), showDebrief: false };
     hintsShown = 0;
     document.body.classList.toggle("practice-mode", !!(scn.practice || scn.noBedside));
+    document.body.classList.toggle("orient-mode", !!scn.sequential);
     if (scn.quiz) startQuiz();
     if (scn.practice) newPracticeOrder(); else scn.setup(P);
     store.set("ivp-scn", scn.id);
@@ -952,9 +953,53 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
   }
 
+  // "Show me": ring the key or screen button to press next for a guided task.
+  function showTarget(t) {
+    if (!t) return null;
+    if (t.startsWith("lcd:")) return $$("#lcd [data-side]").find((el) => el.textContent.trim() === t.slice(4)) || null;
+    if (t.startsWith("mk:")) { const [, ch, k] = t.split(":"); return $(`#mod${ch} [data-mk="${k}"]`); }
+    return $(t);
+  }
+  let ringTimer = null;
+  function showMe(g) {
+    if (!g) return;
+    const S = P.state;
+    let pick = g.show ? g.show(S) : null;
+    let el = pick ? showTarget(pick.t) : null;
+    if (!el) {
+      // The furthest step already on the screen, else the first key of the task.
+      const ts = g.targets || [];
+      for (let i = ts.length - 1; i >= 0 && !el; i--) if (ts[i].startsWith("lcd:")) { el = showTarget(ts[i]); pick = { t: ts[i] }; }
+      if (!el) { const pd = showTarget("lcd:PAGE DOWN"); if (pd && ts.some((t) => t.startsWith("lcd:"))) { el = pd; pick = { t: "", tip: "Page down to find it" }; } }
+      if (!el && ts.length) { el = showTarget(ts[0]); pick = { t: ts[0] }; }
+    }
+    if (!el) return;
+    if (!S.on && g.targets && g.targets[0] !== "#powerKey") { el = $("#powerKey"); pick = { tip: "Turn the pump on first" }; }
+    let ring = $("#showRing");
+    if (!ring) { ring = document.createElement("div"); ring.id = "showRing"; ring.innerHTML = "<span></span>"; document.body.appendChild(ring); }
+    ring.querySelector("span").textContent = (pick && pick.tip) || "Press here";
+    const place = () => {
+      const r = el.isConnected ? el.getBoundingClientRect() : null;
+      if (!r || !r.width) { ring.hidden = true; return; }
+      Object.assign(ring.style, { left: r.left - 6 + "px", top: r.top - 6 + "px", width: r.width + 12 + "px", height: r.height + 12 + "px" });
+      ring.hidden = false;
+    };
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    place();
+    clearInterval(ringTimer);
+    const until = Date.now() + 4500, tgt = pick && pick.t;
+    ringTimer = setInterval(() => {
+      if (!el.isConnected && tgt) el = showTarget(tgt) || el; // the screen redraws: find the button again
+      if (Date.now() > until) { clearInterval(ringTimer); ring.hidden = true; return; }
+      place();
+    }, 150);
+  }
+
   // One-page completion record for a guided scenario, printed from a hidden block.
   function printCompletion() {
     const name = ($("#certName").value || "").trim();
+    const group = (($("#certGroup") && $("#certGroup").value) || "").trim();
+    store.set("ivp-cert-group", group);
     if (!name) { $("#certName").focus(); $("#certName").setAttribute("aria-invalid", "true"); return; }
     $("#certName").removeAttribute("aria-invalid");
     store.set("ivp-cert-name", name);
@@ -967,8 +1012,8 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     const alerts = log.filter((e) => e.type === "hardLimit" || e.type === "softLimit").length;
     let box = $("#printArea");
     if (!box) { box = document.createElement("div"); box.id = "printArea"; document.body.appendChild(box); }
-    box.innerHTML = `<div class="pc-head"><div class="pc-kicker">Clinical simulation · IV pump</div><h1>${esc(scn.title.split(":")[0])}: completion record</h1></div>
-      <table class="pc-meta"><tr><th>Student</th><td>${esc(name)}</td></tr><tr><th>Date</th><td>${end.toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}</td></tr>
+    box.innerHTML = `<div class="pc-head"><div class="pc-kicker">Clinical simulation · IV pump</div><h1>${esc(scn.title.split(":")[0])}: completion summary</h1></div>
+      <table class="pc-meta"><tr><th>Student</th><td>${esc(name)}</td></tr>${group ? `<tr><th>Group</th><td>${esc(group)}</td></tr>` : ""}<tr><th>Date</th><td>${end.toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}</td></tr>
       <tr><th>Pump</th><td>${esc(PUMP_NAMES[DEV] || "")}</td></tr><tr><th>Time on task</th><td>${mins} min (${fmtT(X.startedAt)} to ${fmtT(end)})</td></tr>
       <tr><th>Limit alerts during practice</th><td>${alerts}</td></tr></table>
       <table class="pc-tasks"><thead><tr><th></th><th>Task</th><th>Completed</th></tr></thead><tbody>
@@ -1013,9 +1058,11 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     const metCount = goals.filter((g, i) => X.met[i]).length;
     // Guided (sequential) scenarios show the steps for the first task not yet done.
     const nextGoal = scn.sequential ? goals.findIndex((g, i) => !X.met[i]) : -1;
+    // Hint when what is running does not match the order (cleared once it is fixed).
+    const wrongs = goals.map((g, i) => (!X.met[i] && g.wrong ? g.wrong(S) : null));
     const hints = scn.hints || [];
     const goalHTML = goals.length ? `<h3>Your checklist · ${metCount}/${goals.length}</h3><div class="progress"><i style="width:${(metCount / goals.length) * 100}%"></i></div>
-      <ol>${goals.map((g, i) => `<li class="${X.met[i] ? "met" : X.miss[i] ? "miss" : ""}${i === nextGoal ? " now" : ""}"><span class="mark">${X.met[i] ? "✓" : X.miss[i] ? "✕" : ""}</span><span>${g.text}${X.miss[i] && !X.met[i] ? ` <em>(an error was recorded, try again)</em>` : ""}${i === nextGoal && g.how ? `<ol class="how">${g.how.map((h) => `<li>${h}</li>`).join("")}</ol>` : ""}</span></li>`).join("")}</ol>` : `<h3>Free practice</h3><p style="margin:0;font-size:14px">No checklist. Watch the event history below to see what the pump recorded.</p>`;
+      <ol>${goals.map((g, i) => `<li class="${X.met[i] ? "met" : X.miss[i] ? "miss" : ""}${i === nextGoal ? " now" : ""}"><span class="mark">${X.met[i] ? "✓" : X.miss[i] ? "✕" : ""}</span><span>${g.text}${X.miss[i] && !X.met[i] ? ` <em>(an error was recorded, try again)</em>` : ""}${i === nextGoal && g.how ? `<ol class="how">${g.how.map((h) => `<li>${h}</li>`).join("")}</ol>` : ""}${wrongs[i] ? `<div class="wrong-hint">${wrongs[i]}</div>` : ""}${i === nextGoal && (g.show || g.targets) ? `<button class="btn-plain showme-btn" data-showme="${i}">Show me</button>` : ""}</span></li>`).join("")}</ol>` : `<h3>Free practice</h3><p style="margin:0;font-size:14px">No checklist. Watch the event history below to see what the pump recorded.</p>`;
     const hintHTML = hints.length ? `<div style="margin-top:12px"><button class="btn-plain" id="hintBtn" ${hintsShown >= hints.length ? "disabled" : ""}>${hintsShown ? "Next hint" : "Show a hint"} (${hintsShown}/${hints.length})</button>${hintsShown ? `<ol class="hintlist">${hints.slice(0, hintsShown).map((h) => `<li>${h}</li>`).join("")}</ol>` : ""}</div>` : "";
     setHTML($("#goals"), goalHTML + hintHTML);
 
@@ -1024,11 +1071,13 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
       ? `<div class="${done ? "complete" : "panel"}">${done ? `<p style="margin:0 0 6px"><strong>Scenario complete.</strong> Every checklist item met.</p>` : `<h3>Debrief</h3>`}<div class="debrief">${scn.debrief}</div></div>`
       : `<button class="btn-plain" id="debriefBtn">Show debrief</button>`) : "";
     // Completion record (orientation): name + print / save as PDF.
-    const cert = done && scn.sequential ? `<div class="cert-box"><label for="certName">Your name for the completion record</label>
-      <div class="cert-row"><input id="certName" type="text" autocomplete="name" placeholder="First and last name"><button class="btn-main" id="certPrint">Print completion record</button></div>
+    const cert = done && scn.sequential ? `<div class="cert-box"><h3>Completion summary</h3>
+      <div class="cert-row"><label for="certName">Name<input id="certName" type="text" autocomplete="name" placeholder="First and last name"></label>
+      <label for="certGroup">Group<input id="certGroup" type="text" placeholder="e.g. Group 2"></label></div>
+      <div class="cert-row"><button class="btn-main" id="certPrint">Print completion summary</button><button class="btn-plain" id="certRestart">Start over</button></div>
       <p class="pr-math">Prints one page. To save a PDF, choose <b>Save as PDF</b> as the printer.</p></div>` : "";
     setHTML($("#debrief"), deb + cert);
-    if (cert && !$("#certName").value) $("#certName").value = store.get("ivp-cert-name") || "";
+    if (cert && !$("#certName").value) { $("#certName").value = store.get("ivp-cert-name") || ""; $("#certGroup").value = store.get("ivp-cert-group") || ""; }
 
     const hist = S.log.slice(-40).reverse().map((e) => `<li><span>${fmtClock(e.t)}</span>${describe(e)}</li>`).join("");
     setHTML($("#historyList"), hist || "<li>No events yet.</li>");
@@ -1056,6 +1105,9 @@ const APP_SRC = (document.currentScript && document.currentScript.src) || locati
     if (e.target.id === "hintBtn") { hintsShown++; renderCoach(P.state); }
     if (e.target.id === "debriefBtn") { X.showDebrief = true; renderCoach(P.state); }
     if (e.target.id === "certPrint") printCompletion();
+    if (e.target.id === "certRestart") loadScenario(scn.id);
+    const sm = e.target.closest("[data-showme]");
+    if (sm) showMe((scn.goals || [])[+sm.dataset.showme]);
   });
 
   function fmtClock(t) {

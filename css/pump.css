@@ -851,7 +851,8 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
 .cert-box { margin-top: 12px; display: grid; gap: 6px; }
 .cert-box label { font-weight: 600; font-size: 14px; }
 .cert-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.cert-row input { flex: 1 1 12rem; min-width: 0; padding: 8px 10px; font: inherit; border: 1px solid var(--line, #c9d3d0); border-radius: 6px; }
+.cert-row label { flex: 1 1 10rem; display: grid; gap: 3px; font-size: 13px; font-weight: 600; }
+.cert-row input { min-width: 0; padding: 8px 10px; font: inherit; border: 1px solid var(--line, #c9d3d0); border-radius: 6px; }
 .cert-row input[aria-invalid="true"] { border-color: var(--crit, #b3261e); outline: 2px solid var(--crit, #b3261e); }
 #printArea { display: none; }
 @media print {
@@ -868,3 +869,15 @@ footer p { max-width: 90ch; margin: 0 0 6px; }
   #printArea .pc-sign { margin-top: 28px; }
   #printArea .pc-foot { font-size: 9pt; color: #444; margin-top: 18px; }
 }
+
+/* Orientation: task panel first, hints, Show me */
+body.orient-mode .coach > #goals, body.orient-mode .coach > #debrief { order: 1; }
+body.orient-mode .coach > #patientBand, body.orient-mode .coach > #orders, body.orient-mode .coach > #vitals,
+body.orient-mode .coach > #decisions, body.orient-mode .coach > #history { order: 2; }
+.wrong-hint { margin-top: 6px; padding: 6px 8px; border-left: 3px solid var(--crit, #b3261e); background: color-mix(in srgb, var(--crit, #b3261e) 9%, transparent); font-weight: 400; font-size: 13.5px; line-height: 1.4; }
+.showme-btn { margin-top: 8px; }
+.cert-box h3 { margin: 0; }
+#showRing { position: fixed; z-index: 9999; pointer-events: none; border: 3px solid #f2b705; border-radius: 10px; box-shadow: 0 0 0 4px rgba(242, 183, 5, .35); animation: ringPulse 1s ease-in-out infinite; }
+#showRing span { position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); white-space: nowrap; background: #1b2a22; color: #fff; font: 600 13px/1.2 "Source Sans 3", Arial, sans-serif; padding: 5px 8px; border-radius: 6px; }
+@keyframes ringPulse { 50% { box-shadow: 0 0 0 9px rgba(242, 183, 5, .15); } }
+@media (prefers-reduced-motion: reduce) { #showRing { animation: none; } }
